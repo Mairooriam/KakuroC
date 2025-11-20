@@ -7,7 +7,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
+   option(ANIMATED "Enable animation features" ON) 
 # Enable all warnings and sanitizers for GCC/Clang
 if(MSVC)
     add_compile_options(/W4)
@@ -49,7 +49,9 @@ set(SOURCES
 add_executable(main ${SOURCES})
 target_compile_definitions(main PRIVATE LOG_USE_COLOR)
 target_link_libraries(main ${RAYLIB_LIBRARIES})
-
+if(ANIMATED)
+    target_compile_definitions(main PRIVATE ANIMATED)
+endif()
 if(WIN32)
     target_link_libraries(main winmm gdi32 opengl32)
 endif()

@@ -7,9 +7,13 @@ if not exist build (
 REM Change to build directory
 cd build
 
-REM Run CMake configure step with Debug build type and Ninja generator
+cmake -G "Ninja" ^
+    -DCMAKE_BUILD_TYPE=Debug ^
+    -DCMAKE_C_COMPILER=clang ^
+    -DCMAKE_CXX_COMPILER=clang++ ^
+    -DANIMATED=OFF ^
+    ../src
 
-cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ ../src
 
 REM Build the project in Debug mode using Ninja
 ninja
