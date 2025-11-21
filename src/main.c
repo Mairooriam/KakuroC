@@ -34,8 +34,9 @@ int main(void) {
   bool update = true;
   Node *cursor = node_create_clue((Vec2u8){0, 0}, 10, 20, size);
   float movement_timer = 0.0f;
-  float movement_delay = 0.05f; // Move every 0.1 seconds when key held
+  float movement_delay = 0.1f; // Move every 0.1 seconds when key held
 
+  arr_nodes_serialize("test.txt", &grid);
   while (!WindowShouldClose()) {
     float delta_time = GetFrameTime(); // Get time since last frame
 

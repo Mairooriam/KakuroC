@@ -72,15 +72,17 @@ typedef struct {
   TileType type;
   uint8_t value; // value of cell
   // TODO: make sums into vec2u8?
+  // TODO: make data union and if it is type clue it has sums and if empty it
+  // has values
   uint8_t sum_y; // column
   uint8_t sum_x; // row
+
   // TODO: split rendering stuff elsewhere? or keep here? maybe in grid?
   float size; // square size
-  Coloru8 color;
 } Node;
 
 Node *node_create(Vec2u8 pos, TileType type, uint8_t value, uint8_t sum_x,
-                  uint8_t sum_y, float size, Coloru8 color);
+                  uint8_t sum_y, float size);
 Node *node_create_empty(Vec2u8 pos, float size);
 Node *node_create_clue(Vec2u8 pos, uint8_t sum_x, uint8_t sum_y, float size);
 Node *node_create_blocked(Vec2u8 pos, float size);
@@ -95,6 +97,8 @@ typedef struct {
 
 bool arr_nodes_add(arr_Nodes *arr, Node *node);
 size_t arr_nodes_to_string(char *buf, size_t bufsize, const arr_Nodes *arr);
+int arr_nodes_serialize(const char *path, const arr_Nodes *nodes);
+int arr_nodes_deserialize(const char *path, const arr_Nodes *nodes);
 
 // KAKURO
 void render_grid(const arr_Nodes *arr, int margin, size_t x_dimension,
