@@ -114,7 +114,12 @@ void render_node(const Node *n, int margin) {
                   (Color){255, 255, 255, 255});
 
   case TILETYPE_EMPTY: {
-    DrawRectangle(screen_x, screen_y, n->size, n->size, (Color){0, 0, 0, 255});
+    DrawRectangle(screen_x, screen_y, n->size, n->size,
+                  (Color){255, 0, 0, 255});
+
+    char buf[3];
+    snprintf(buf, 2, "%i", n->value);
+    DrawText(buf, screen_x + n->size / 2, screen_y + n->size / 2, 16, GRAY);
   } break;
 
   // TODO: add rendering for the sums
@@ -124,10 +129,25 @@ void render_node(const Node *n, int margin) {
     DrawLine(screen_x, screen_y, screen_x + n->size, screen_y + n->size,
              Coloru8_to_raylib(n->color));
 
-    // X sum -> from top right corner abit down and left
-    int o_l = 5;
-    int o_d = 5;
-    // DrawText(const char *text, , int posY, int fontSize, Color color)
+    // X SUM TEXT
+    char x_sum[5];
+    snprintf(x_sum, 5, "%i", n->sum_x);
+    int x1_offset_left = -15;
+    int y1_offset_down = 10;
+    int x1 = screen_x + n->size + x1_offset_left;
+    int y1 = screen_y + y1_offset_down;
+    int fontsize = 14;
+    DrawText(x_sum, x1, y1, fontsize, RED);
+
+    // Y SUM TEXT
+    char y_sum[5];
+    snprintf(y_sum, 5, "%i", n->sum_y);
+    int x2_offset_right = 10;
+    int y2_offset_up = -15;
+    int x2 = screen_x + x2_offset_right;
+    int y2 = screen_y + n->size + y2_offset_up;
+    DrawText(y_sum, x2, y2, fontsize, RED);
+
   } break;
   }
 }

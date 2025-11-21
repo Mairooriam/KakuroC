@@ -20,6 +20,23 @@
 // good source
 // https://puzzling.stackexchange.com/questions/49927/creating-a-kakuro-puzzle-with-a-unique-solution
 
+typedef enum {
+  STATE_KEY_NONE,
+  STATE_KEY_ONE,
+  STATE_KEY_TWO,
+  STATE_KEY_THREE,
+  STATE_KEY_FOUR,
+  STATE_KEY_FIVE,
+  STATE_KEY_SIX,
+  STATE_KEY_SEVEN,
+  STATE_KEY_EIGHT,
+  STATE_KEY_NINE
+} StateKeyDown;
+typedef struct {
+  bool isPressed;
+  StateKeyDown key;
+} KeyPressed;
+
 typedef struct {
   float x;
   float y;

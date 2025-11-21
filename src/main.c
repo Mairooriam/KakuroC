@@ -6,13 +6,13 @@
 int main(void) {
   // Initialize the window
   InitWindow(800, 600, "Raylib Hello World");
-  size_t size = 50;
+  size_t size = 125;
   arr_Nodes grid = {0};
   grid.capacity = 255;
   grid.nodes = malloc(sizeof(Node *) * grid.capacity);
 
-  size_t x_dimension = 11;
-  size_t y_dimension = 11;
+  size_t x_dimension = 4;
+  size_t y_dimension = 4;
 
   size_t bufsize = 1024 * 8;
   char buf[bufsize];
@@ -33,49 +33,70 @@ int main(void) {
   int margin = 5;
   bool update = true;
   Node *cursor = node_create_clue((Vec2u8){0, 0}, 10, 20, size);
+  float movement_timer = 0.0f;
+  float movement_delay = 0.05f; // Move every 0.1 seconds when key held
+
   while (!WindowShouldClose()) {
+    float delta_time = GetFrameTime(); // Get time since last frame
 
-    // INPUT
-    if (IsKeyDown(KEY_RIGHT)) {
-      printf("[KEY] - right\n");
-      if (cursor->pos.x < x_dimension - 1) {
+    movement_timer += delta_time;
+    if (movement_timer >= movement_delay) {
+      bool moved = false;
+      if (IsKeyDown(KEY_RIGHT) && cursor->pos.x < x_dimension - 1) {
         cursor->pos.x++;
-        update = true;
+        moved = true;
+        printf("[MOVE] Right to (%u, %u)\n", cursor->pos.x, cursor->pos.y);
       }
-    }
-    if (IsKeyDown(KEY_LEFT)) {
-      printf("[kKEY] - left\n");
-      if (cursor->pos.x > 0) {
+      if (IsKeyDown(KEY_LEFT) && cursor->pos.x > 0) {
         cursor->pos.x--;
-        update = true;
+        moved = true;
+        printf("[MOVE] Left to (%u, %u)\n", cursor->pos.x, cursor->pos.y);
       }
-    }
-    if (IsKeyDown(KEY_UP)) {
-      printf("[KEY] - up\n");
-      if (cursor->pos.y > 0) {
+      if (IsKeyDown(KEY_UP) && cursor->pos.y > 0) {
         cursor->pos.y--;
-        update = true;
+        moved = true;
+        printf("[MOVE] Up to (%u, %u)\n", cursor->pos.x, cursor->pos.y);
       }
-    }
-    if (IsKeyDown(KEY_DOWN)) {
-      printf("[KEY] - down\n");
-      if (cursor->pos.y < y_dimension - 1) {
+      if (IsKeyDown(KEY_DOWN) && cursor->pos.y < y_dimension - 1) {
         cursor->pos.y++;
-        update = true;
+        moved = true;
+        printf("[MOVE] Down to (%u, %u)\n", cursor->pos.x, cursor->pos.y);
+      }
+
+      if (moved) {
+        movement_timer = 0.0f;
+        size_t index = cursor->pos.y * y_dimension + cursor->pos.x;
+        // Node *node = grid.nodes[index];
+        // node->type = TILETYPE_CLUE;
+        // printf("Tile at index %zu (%u,%u) updated to clue.\n", index,
+        //        cursor->pos.x, cursor->pos.y);
       }
     }
 
-    // UPDATE
-    if (update) {
+    int charPressed = GetCharPressed();
+    if (charPressed >= '1' && charPressed <= '9') {
+      int number = charPressed - '0';
       size_t index = cursor->pos.y * y_dimension + cursor->pos.x;
       Node *node = grid.nodes[index];
-      node->type = TILETYPE_CLUE;
-      printf("Tile at index %zu (%i,%i)updated to clue. ", index, cursor->pos.x,
-             cursor->pos.y);
+      node->value = (uint8_t)number;
+      node->type = TILETYPE_EMPTY;
+      printf("[INPUT] Set tile at (%u, %u) to %d\n", cursor->pos.x,
+             cursor->pos.y, number);
+    }
+    // UPDATE
+    if (update) {
 
-      char buf[1024];
-      node_to_string(buf, sizeof buf, node);
-      printf("node: %s", buf);
+      size_t index = cursor->pos.y * y_dimension + cursor->pos.x;
+      // Node *node = grid.nodes[index];
+      // node->type = TILETYPE_CLUE;
+      // printf("Tile at index %zu (%i,%i)updated to clue. ", index,
+      // cursor->pos.x,
+      //        cursor->pos.y);
+      //
+      // char buf[1024];
+      // node_to_string(buf, sizeof buf, node);
+      // printf("node: %s", buf);
+      //
       update = false;
     }
 
