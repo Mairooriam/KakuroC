@@ -62,6 +62,7 @@ typedef struct Color Color; // for raylib
 Color Coloru8_to_raylib(Coloru8 c);
 
 typedef enum {
+  TILETYPE_CURSOR,
   TILETYPE_EMPTY,  // White cell where player enters numbers
   TILETYPE_CLUE,   // Black cell with sum clues (diagonal split)
   TILETYPE_BLOCKED // Solid black cell (no clues)
@@ -80,7 +81,7 @@ typedef struct {
   // TODO: split rendering stuff elsewhere? or keep here? maybe in grid?
   float size; // square size
 } Node;
-
+// TODO: add freeing of node
 Node *node_create(Vec2u8 pos, TileType type, uint8_t value, uint8_t sum_x,
                   uint8_t sum_y, float size);
 Node *node_create_empty(Vec2u8 pos, float size);
@@ -95,12 +96,14 @@ typedef struct {
   size_t capacity;
 } arr_Nodes;
 
+// TODO: add freeing of array
 bool arr_nodes_add(arr_Nodes *arr, Node *node);
 size_t arr_nodes_to_string(char *buf, size_t bufsize, const arr_Nodes *arr);
 int arr_nodes_serialize(const char *path, const arr_Nodes *nodes);
-int arr_nodes_deserialize(const char *path, const arr_Nodes *nodes);
+int arr_nodes_deserialize(const char *path, arr_Nodes *nodes);
 
 // KAKURO
 void render_grid(const arr_Nodes *arr, int margin, size_t x_dimension,
                  size_t y_dimension);
 void render_node(const Node *node, int margin);
+void render_state_info(int state);

@@ -11,10 +11,10 @@ int main(void) {
   grid.capacity = 255;
   grid.nodes = malloc(sizeof(Node *) * grid.capacity);
 
-  size_t x_dimension = 4;
-  size_t y_dimension = 4;
+  size_t x_dimension = 5;
+  size_t y_dimension = 5;
 
-  size_t bufsize = 1024 * 8;
+  size_t bufsize = 1024 * 15;
   char buf[bufsize];
   memset(buf, 0, bufsize);
   printf("Printing nodes: \n");
@@ -32,11 +32,16 @@ int main(void) {
   printf("nodes: \n%s", buf);
   int margin = 5;
   bool update = true;
-  Node *cursor = node_create_clue((Vec2u8){0, 0}, 10, 20, size);
+  Node *cursor = node_create((Vec2u8){0, 0}, TILETYPE_CURSOR, 0, 0, 0, size);
   float movement_timer = 0.0f;
   float movement_delay = 0.1f; // Move every 0.1 seconds when key held
 
   arr_nodes_serialize("test.txt", &grid);
+
+  arr_Nodes tmparr;
+  tmparr.capacity = 64;
+  tmparr.nodes = malloc(sizeof(Node *) * 64);
+  arr_nodes_deserialize("test.txt", &tmparr);
   while (!WindowShouldClose()) {
     float delta_time = GetFrameTime(); // Get time since last frame
 
@@ -64,13 +69,62 @@ int main(void) {
         printf("[MOVE] Down to (%u, %u)\n", cursor->pos.x, cursor->pos.y);
       }
 
+      // SAVING
+      static bool sDown = false;
+      if (IsKeyDown(KEY_S)) {
+        sDown = true;
+      } else if (IsKeyReleased(KEY_S)) {
+        if (sDown) {
+          printf("[SAVE] - saving current map\n");
+          arr_nodes_serialize("savefile.txt", &grid);
+        }
+      }
+
+      // LOADING
+      static bool lDown = false;
+      if (IsKeyDown(KEY_L)) {
+        lDown = true;
+      } else if (IsKeyReleased(KEY_L)) {
+        if (lDown) {
+          printf("[SAVE] - Loading \"savefile.txt\" map\n");
+          // TODO: leakinGg memory not freeing old nodes
+          grid = (arr_Nodes){0};
+          grid.capacity = 128;
+          grid.nodes = malloc(sizeof(Node *) * 128);
+          arr_nodes_deserialize("savefile.txt", &grid);
+        }
+      }
+
+      // PLACING CLUE
+      static bool cDown = false;
+      if (IsKeyDown(KEY_C)) {
+        cDown = true;
+      } else if (IsKeyReleased(KEY_C)) {
+        if (cDown) {
+          size_t index = cursor->pos.y * y_dimension + cursor->pos.x;
+          Node *node = grid.nodes[index];
+          node->type = TILETYPE_CLUE;
+          printf("Tile at index %zu (%u,%u) updated to clue.\n", index,
+                 cursor->pos.x, cursor->pos.y);
+        }
+      }
+
+      // PLACING BLOCED
+      static bool bDown = false;
+      if (IsKeyDown(KEY_B)) {
+        bDown = true;
+      } else if (IsKeyReleased(KEY_B)) {
+        if (bDown) {
+          size_t index = cursor->pos.y * y_dimension + cursor->pos.x;
+          Node *node = grid.nodes[index];
+          node->type = TILETYPE_BLOCKED;
+          printf("Tile at index %zu (%u,%u) updated to blockeblockedd.\n",
+                 index, cursor->pos.x, cursor->pos.y);
+        }
+      }
+
       if (moved) {
         movement_timer = 0.0f;
-        size_t index = cursor->pos.y * y_dimension + cursor->pos.x;
-        // Node *node = grid.nodes[index];
-        // node->type = TILETYPE_CLUE;
-        // printf("Tile at index %zu (%u,%u) updated to clue.\n", index,
-        //        cursor->pos.x, cursor->pos.y);
       }
     }
 
@@ -87,7 +141,7 @@ int main(void) {
     // UPDATE
     if (update) {
 
-      size_t index = cursor->pos.y * y_dimension + cursor->pos.x;
+      // size_t index = cursor->pos.y * y_dimension + cursor->pos.x;
       // Node *node = grid.nodes[index];
       // node->type = TILETYPE_CLUE;
       // printf("Tile at index %zu (%i,%i)updated to clue. ", index,
@@ -108,6 +162,7 @@ int main(void) {
 
     render_grid(&grid, margin, x_dimension, y_dimension);
     render_node(cursor, margin);
+    render_state_info(1);
     EndDrawing();
   }
 

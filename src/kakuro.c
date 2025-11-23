@@ -78,15 +78,83 @@ int arr_nodes_serialize(const char *path, const arr_Nodes *arr) {
 
   FILE *fp = fopen(path, "w");
 
-  if (fp) {
-    fwrite(buf, written, 1, fp);
+  if (!fp) {
+    return -1;
   }
+  fwrite(buf, written, 1, fp);
 
   free(buf);
+  fclose(fp);
   return written;
 }
 
-int arr_nodes_deserialize(const char *path, const arr_Nodes *nodes);
+int arr_nodes_deserialize(const char *path, arr_Nodes *n) {
+  printf("running deserialze\n");
+  FILE *fp = fopen(path, "r");
+  if (!fp) {
+    printf("files not found\n");
+    return -1;
+  }
+
+  char buf[256];
+  size_t i = 0;
+  bool inNode = false;
+  Node tmpNode = {0};
+  while (fgets(buf, sizeof buf, fp) != NULL) {
+
+    buf[strcspn(buf, "\n")] = 0;
+
+    if (strcmp(buf, "") == 0) {
+      continue;
+    }
+
+    if (strcmp(buf, "[NODE]") == 0) {
+      inNode = true;
+      printf("Found node at line: %zu\n", i);
+      continue;
+    }
+    // TODO: check if missing a field currently justd trusting
+    // TODO: skip empty lines?
+    if (inNode) {
+      if (sscanf(buf, "pos = %hhu,%hhu", &tmpNode.pos.x, &tmpNode.pos.y) == 2) {
+        printf("Parsed pos: %hhu,%hhu\n", tmpNode.pos.x, tmpNode.pos.y);
+      } else if (sscanf(buf, "type = %i", (int *)&tmpNode.type) == 1) {
+        printf("Parsed type: %i\n", tmpNode.type);
+      } else if (sscanf(buf, "value = %hhu", &tmpNode.value) == 1) {
+        printf("Parsed value: %hhu\n", tmpNode.value);
+      } else if (sscanf(buf, "sum_x = %hhu", &tmpNode.sum_x) == 1) {
+        printf("Parsed sum_x: %hhu\n", tmpNode.sum_x);
+      } else if (sscanf(buf, "sum_y = %hhu", &tmpNode.sum_y) == 1) {
+        printf("Parsed sum_y: %hhu\n", tmpNode.sum_y);
+      } else if (sscanf(buf, "size = %f", &tmpNode.size) == 1) {
+        printf("Parsed size: %f\n", tmpNode.size);
+
+        Node *node = node_create(tmpNode.pos, tmpNode.type, tmpNode.value,
+                                 tmpNode.sum_x, tmpNode.sum_y, tmpNode.size);
+        if (node) {
+          arr_nodes_add(n, node);
+          printf("Added node to array\n");
+        }
+        inNode = false;
+        tmpNode = (Node){0};
+      } else if (strlen(buf) == 0) {
+      } else {
+        printf("Unknown line: %s\n", buf);
+      }
+    }
+
+    i++;
+  }
+
+  if (feof(fp)) {
+    printf("Reached end of file\n");
+  } else if (ferror(fp)) {
+    printf("Error reading file\n");
+  }
+
+  fclose(fp);
+  return 0;
+}
 Vec2f Vec2f_add(Vec2f v1, Vec2f v2) {
   return (Vec2f){v1.x + v2.x, v1.y + v2.y};
 }
@@ -136,14 +204,15 @@ void render_node(const Node *n, int margin) {
   int screen_y = (int)n->pos.y * (n->size + margin);
 
   switch (n->type) {
-  case TILETYPE_BLOCKED:
-    DrawRectangle(screen_x, screen_y, n->size, n->size,
-                  (Color){255, 255, 255, 255});
-
+  case TILETYPE_BLOCKED: {
+    DrawRectangle(screen_x, screen_y, n->size, n->size, (Color){0, 0, 0, 255});
+    DrawLine(screen_x, screen_y, screen_x + n->size, screen_y + n->size, BLACK);
+  } break;
   case TILETYPE_EMPTY: {
-    DrawRectangle(screen_x, screen_y, n->size, n->size,
-                  (Color){255, 0, 0, 255});
-
+    int r = n->pos.y * 50;
+    int g = n->pos.x * 50;
+    DrawRectangle(screen_x, screen_y, n->size, n->size, (Color){r, g, 0, 255});
+    // R   G  B    0 1 2 3 4
     char buf[3];
     snprintf(buf, 2, "%i", n->value);
     DrawText(buf, screen_x + n->size / 2, screen_y + n->size / 2, 32, GRAY);
@@ -175,5 +244,24 @@ void render_node(const Node *n, int margin) {
     DrawText(y_sum, x2, y2, fontsize, RED);
 
   } break;
+  case TILETYPE_CURSOR: {
+    DrawRectangle(screen_x, screen_y, n->size, n->size,
+                  (Color){200, 0, 200, 175});
+
+  } break;
+  }
+}
+
+void render_state_info(int state) {
+  // pos of top left
+  int x = 550;
+  int fontsize = 22;
+  DrawText("State", x, 0, fontsize, BLACK);
+  if (state == 1) {
+    DrawText("Typing x sum", x, 1 * 22 + 1, fontsize, BLACK);
+  } else if (state == 2) {
+    DrawText("Typing y sum", x, 1 * 22 + 1, fontsize, BLACK);
+  } else if (state == 0) {
+    DrawText("no state", x, 1 * 22 + 1, fontsize, BLACK);
   }
 }
