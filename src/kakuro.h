@@ -68,6 +68,12 @@ typedef enum {
   TILETYPE_BLOCKED // Solid black cell (no clues)
 } TileType;
 
+typedef enum {
+  APP_STATE_NONE,
+  APP_STATE_X_SUM,
+  APP_STATE_Y_SUM
+} AppState;
+
 typedef struct {
   Vec2u8 pos; // pos of cell
   TileType type;
@@ -91,10 +97,13 @@ size_t node_to_string(char *buf, size_t bufsize, const Node *node);
 
 // TODO: array functions
 typedef struct {
-  Node **nodes;
-  size_t size;
+  Node **nodes; 
+  size_t size;  
   size_t capacity;
+  size_t x_dimension;
+  size_t y_dimension;
 } arr_Nodes;
+
 
 // TODO: add freeing of array
 bool arr_nodes_add(arr_Nodes *arr, Node *node);
@@ -102,8 +111,14 @@ size_t arr_nodes_to_string(char *buf, size_t bufsize, const arr_Nodes *arr);
 int arr_nodes_serialize(const char *path, const arr_Nodes *nodes);
 int arr_nodes_deserialize(const char *path, arr_Nodes *nodes);
 
+
 // KAKURO
 void render_grid(const arr_Nodes *arr, int margin, size_t x_dimension,
                  size_t y_dimension);
 void render_node(const Node *node, int margin);
 void render_state_info(int state);
+
+
+
+void clue_tile_45_checker();
+

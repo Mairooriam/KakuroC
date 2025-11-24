@@ -35,7 +35,7 @@ int main(void) {
   Node *cursor = node_create((Vec2u8){0, 0}, TILETYPE_CURSOR, 0, 0, 0, size);
   float movement_timer = 0.0f;
   float movement_delay = 0.1f; // Move every 0.1 seconds when key held
-
+  AppState state = APP_STATE_NONE;
   arr_nodes_serialize("test.txt", &grid);
 
   arr_Nodes tmparr;
@@ -123,21 +123,101 @@ int main(void) {
         }
       }
 
+      // CHANGE STATE TO X SUM
+      static bool xDown = false;
+      if (IsKeyDown(KEY_X)) {
+        xDown = true;
+      } else if (IsKeyReleased(KEY_X)) {
+        if (xDown) {
+          state = APP_STATE_X_SUM;
+        }
+      }
+
+      // PLACING BLOCED
+      static bool yDown = false;
+      if (IsKeyDown(KEY_Y)) {
+        yDown = true;
+      } else if (IsKeyReleased(KEY_Y)) {
+        if (yDown) {
+            state = APP_STATE_Y_SUM;
+        }
+      }
+
+      // CHANGE STATE
+      static bool nDown = false;
+      if (IsKeyDown(KEY_N)) {
+        nDown = true;
+      } else if (IsKeyReleased(KEY_N)) {
+        if (nDown) {
+          state = APP_STATE_NONE;
+        }
+      }
+
+
       if (moved) {
         movement_timer = 0.0f;
       }
     }
 
     int charPressed = GetCharPressed();
-    if (charPressed >= '1' && charPressed <= '9') {
+    if (charPressed >= '0' && charPressed <= '9') {
       int number = charPressed - '0';
       size_t index = cursor->pos.y * y_dimension + cursor->pos.x;
       Node *node = grid.nodes[index];
+      switch (node->type)
+      {
+      case TILETYPE_BLOCKED:
+        {}
+        break;
+      case TILETYPE_CLUE:
+      {
+          switch (state)
+          {
+          case APP_STATE_NONE:
+            {}
+            break;
+                case APP_STATE_X_SUM:
+          {
+            if (number == 0)
+            {
+              node->sum_x = 0;
+            }else {
+              node->sum_x += number;
+
+            }
+          
+            
+          }
+          break;
+                case APP_STATE_Y_SUM:
+          {
+            if (number == 0)
+            {
+              node->sum_y = 0;
+            }else {
+              node->sum_y += number;
+
+            }
+
+          }
+          break;
+          default:
+            break;
+        }
+        
+      }break;
+      case TILETYPE_EMPTY:
+      { 
       node->value = (uint8_t)number;
       node->type = TILETYPE_EMPTY;
       printf("[INPUT] Set tile at (%u, %u) to %d\n", cursor->pos.x,
              cursor->pos.y, number);
-    }
+}break;
+
+      default:
+        break;
+      }
+         }
     // UPDATE
     if (update) {
 
@@ -162,7 +242,7 @@ int main(void) {
 
     render_grid(&grid, margin, x_dimension, y_dimension);
     render_node(cursor, margin);
-    render_state_info(1);
+    render_state_info(state);
     EndDrawing();
   }
 
