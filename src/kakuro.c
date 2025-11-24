@@ -1,4 +1,5 @@
 #include "kakuro.h"
+#include <assert.h>
 #include <raylib.h>
 #include <stdio.h>
 #include <string.h>
@@ -155,6 +156,27 @@ int arr_nodes_deserialize(const char *path, arr_Nodes *n) {
   fclose(fp);
   return 0;
 }
+arr_Nodes *arr_nodes_create(size_t x_dimension, size_t y_dimension) {
+  arr_Nodes *arr = malloc(sizeof(arr_Nodes));
+  if (!arr) {
+    printf("Failed to allocate arr_Nodes struct\n");
+    return NULL;
+  }
+
+  arr->x_dimension = x_dimension;
+  arr->y_dimension = y_dimension;
+  arr->size = 0;
+  arr->capacity = x_dimension * y_dimension;
+  arr->nodes = malloc(sizeof(Node *) * arr->capacity);
+
+  if (!arr->nodes) {
+    printf("Failed to allocate nodes array\n");
+    free(arr);
+    return NULL;
+  }
+
+  return arr;
+}
 Vec2f Vec2f_add(Vec2f v1, Vec2f v2) {
   return (Vec2f){v1.x + v2.x, v1.y + v2.y};
 }
@@ -212,7 +234,7 @@ void render_node(const Node *n, int margin) {
     int r = n->pos.y * 50;
     int g = n->pos.x * 50;
     DrawRectangle(screen_x, screen_y, n->size, n->size, (Color){r, g, 0, 255});
-    // R   G  B    0 1 2 3 4
+    // R   G  B
     char buf[3];
     snprintf(buf, 2, "%i", n->value);
     DrawText(buf, screen_x + n->size / 2, screen_y + n->size / 2, 32, GRAY);
@@ -224,10 +246,12 @@ void render_node(const Node *n, int margin) {
                   (Color){125, 125, 125, 255});
     DrawLine(screen_x, screen_y, screen_x + n->size, screen_y + n->size, BLACK);
 
+    // TODO: proper size based text offsets
+
     // X SUM TEXT
     char x_sum[5];
     snprintf(x_sum, 5, "%i", n->sum_x);
-    int x1_offset_left = -15;
+    int x1_offset_left = -30;
     int y1_offset_down = 10;
     int x1 = screen_x + n->size + x1_offset_left;
     int y1 = screen_y + y1_offset_down;
@@ -238,7 +262,7 @@ void render_node(const Node *n, int margin) {
     char y_sum[5];
     snprintf(y_sum, 5, "%i", n->sum_y);
     int x2_offset_right = 10;
-    int y2_offset_up = -15;
+    int y2_offset_up = -40;
     int x2 = screen_x + x2_offset_right;
     int y2 = screen_y + n->size + y2_offset_up;
     DrawText(y_sum, x2, y2, fontsize, RED);
@@ -263,5 +287,51 @@ void render_state_info(int state) {
     DrawText("Typing y sum", x, 1 * 22 + 1, fontsize, BLACK);
   } else if (state == 0) {
     DrawText("no state", x, 1 * 22 + 1, fontsize, BLACK);
+  }
+}
+Node *arr_nodes_get(const arr_Nodes *arr, size_t x, size_t y) {
+  if (x > arr->x_dimension || y > arr->y_dimension) {
+    return NULL;
+  }
+
+  size_t i = y * arr->y_dimension + x;
+  return arr->nodes[i];
+}
+
+static bool has_9_empty(arr_Nodes *n, size_t start_x, size_t start_y,
+                        bool dir_x) {
+  size_t count = 0;
+  size_t x = start_x, y = start_y;
+  while (count < 9) {
+    Node *node = arr_nodes_get(n, x, y);
+    if (!node || node->type != TILETYPE_EMPTY)
+      return false;
+    count++;
+    if (dir_x)
+      x++;
+    else
+      y++;
+  }
+  return true;
+}
+
+void clue_tile_45_checker(arr_Nodes *n) {
+  for (size_t y = 0; y < n->y_dimension; y++) {
+    for (size_t x = 0; x < n->x_dimension; x++) {
+
+      Node *node = arr_nodes_get(n, x, y);
+
+      // TODO: caching for clues instead of checking
+      if (node->type == TILETYPE_CLUE) {
+        // check 9 right
+        if (has_9_empty(n, x, y, true)) {
+          node->sum_x = 45;
+        }
+
+        if (has_9_empty(n, x, y, false)) {
+          node->sum_y = 45;
+        }
+      }
+    }
   }
 }

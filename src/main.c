@@ -11,6 +11,7 @@ int main(void) {
   grid.capacity = 255;
   grid.nodes = malloc(sizeof(Node *) * grid.capacity);
 
+  // TODO: use new create func with dimennsions -> test find 9 rows
   size_t x_dimension = 5;
   size_t y_dimension = 5;
 
@@ -139,7 +140,7 @@ int main(void) {
         yDown = true;
       } else if (IsKeyReleased(KEY_Y)) {
         if (yDown) {
-            state = APP_STATE_Y_SUM;
+          state = APP_STATE_Y_SUM;
         }
       }
 
@@ -153,7 +154,6 @@ int main(void) {
         }
       }
 
-
       if (moved) {
         movement_timer = 0.0f;
       }
@@ -164,60 +164,45 @@ int main(void) {
       int number = charPressed - '0';
       size_t index = cursor->pos.y * y_dimension + cursor->pos.x;
       Node *node = grid.nodes[index];
-      switch (node->type)
-      {
-      case TILETYPE_BLOCKED:
-        {}
-        break;
-      case TILETYPE_CLUE:
-      {
-          switch (state)
-          {
-          case APP_STATE_NONE:
-            {}
-            break;
-                case APP_STATE_X_SUM:
-          {
-            if (number == 0)
-            {
-              node->sum_x = 0;
-            }else {
-              node->sum_x += number;
-
-            }
-          
-            
+      switch (node->type) {
+      case TILETYPE_BLOCKED: {
+      } break;
+      case TILETYPE_CLUE: {
+        switch (state) {
+        case APP_STATE_NONE: {
+        } break;
+        case APP_STATE_X_SUM: {
+          if (number == 0) {
+            node->sum_x = 0;
+          } else {
+            node->sum_x += number;
           }
-          break;
-                case APP_STATE_Y_SUM:
-          {
-            if (number == 0)
-            {
-              node->sum_y = 0;
-            }else {
-              node->sum_y += number;
 
-            }
-
+        } break;
+        case APP_STATE_Y_SUM: {
+          if (number == 0) {
+            node->sum_y = 0;
+          } else {
+            node->sum_y += number;
           }
+
+        } break;
+        default:
           break;
-          default:
-            break;
         }
-        
-      }break;
-      case TILETYPE_EMPTY:
-      { 
-      node->value = (uint8_t)number;
-      node->type = TILETYPE_EMPTY;
-      printf("[INPUT] Set tile at (%u, %u) to %d\n", cursor->pos.x,
-             cursor->pos.y, number);
-}break;
+
+      } break;
+      case TILETYPE_EMPTY: {
+        node->value = (uint8_t)number;
+        node->type = TILETYPE_EMPTY;
+        printf("[INPUT] Set tile at (%u, %u) to %d\n", cursor->pos.x,
+               cursor->pos.y, number);
+      } break;
 
       default:
         break;
       }
-         }
+    }
     // UPDATE
     if (update) {
 
