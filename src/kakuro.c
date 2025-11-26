@@ -238,6 +238,7 @@ void render_node(const Node *n, int margin) {
     char buf[3];
     snprintf(buf, 2, "%i", n->value);
     DrawText(buf, screen_x + n->size / 2, screen_y + n->size / 2, 32, GRAY);
+    // TODO:draw id, render possible vlaues also?
   } break;
 
   // TODO: add rendering for the sums
@@ -290,7 +291,7 @@ void render_state_info(int state) {
   }
 }
 Node *arr_nodes_get(const arr_Nodes *arr, size_t x, size_t y) {
-  if (x > arr->x_dimension || y > arr->y_dimension) {
+  if (x >= arr->x_dimension || y >= arr->y_dimension) {
     return NULL;
   }
 
@@ -303,35 +304,49 @@ static bool has_9_empty(arr_Nodes *n, size_t start_x, size_t start_y,
   size_t count = 0;
   size_t x = start_x, y = start_y;
   while (count < 9) {
-    Node *node = arr_nodes_get(n, x, y);
-    if (!node || node->type != TILETYPE_EMPTY)
-      return false;
-    count++;
     if (dir_x)
       x++;
     else
       y++;
+    Node *node = arr_nodes_get(n, x, y);
+
+    if (node == NULL || node->type != TILETYPE_EMPTY)
+      return false;
+    count++;
   }
   return true;
 }
 
+// check if single node has 45 sum, if it does it changes corresponding sum.
+void clue_tile_45_checker_single_node(arr_Nodes *arr, size_t x, size_t y) {
+  Node *node = arr_nodes_get(arr, x, y);
+
+  // TODO: caching for clues instead of checking
+  if (node->type == TILETYPE_CLUE) {
+    // check 9 right
+    if (has_9_empty(arr, x, y, true)) {
+      node->sum_x = 45;
+    } else {
+      printf("Tile doenst have 45 sum on x axis\n");
+    }
+
+    if (has_9_empty(arr, x, y, false)) {
+      node->sum_y = 45;
+    } else {
+      printf("Tile doenst have 45 sum on y axis\n");
+    }
+  }
+}
 void clue_tile_45_checker(arr_Nodes *n) {
   for (size_t y = 0; y < n->y_dimension; y++) {
     for (size_t x = 0; x < n->x_dimension; x++) {
-
-      Node *node = arr_nodes_get(n, x, y);
-
-      // TODO: caching for clues instead of checking
-      if (node->type == TILETYPE_CLUE) {
-        // check 9 right
-        if (has_9_empty(n, x, y, true)) {
-          node->sum_x = 45;
-        }
-
-        if (has_9_empty(n, x, y, false)) {
-          node->sum_y = 45;
-        }
-      }
+      clue_tile_45_checker_single_node(n, x, y);
+    }
+  }
+}
+void clue_calculate_ids(arr_Nodes *arr) {
+  for (size_t y = 0; y < arr->y_dimension; y++) {
+    for (size_t x = 0; x < arr->x_dimension; x++) {
     }
   }
 }

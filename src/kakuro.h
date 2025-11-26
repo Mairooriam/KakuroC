@@ -19,7 +19,7 @@
 
 // good source
 // https://puzzling.stackexchange.com/questions/49927/creating-a-kakuro-puzzle-with-a-unique-solution
-
+// https://medium.com/@sebastian.charmot/an-introduction-to-binary-integer-linear-programming-bilp-using-kakuro-puzzles-eb1a8c4c6057
 typedef enum {
   STATE_KEY_NONE,
   STATE_KEY_ONE,
@@ -74,6 +74,7 @@ typedef struct {
   Vec2u8 pos; // pos of cell
   TileType type;
   uint8_t value; // value of cell
+  int id;
   // TODO: make sums into vec2u8?
   // TODO: make data union and if it is type clue it has sums and if empty it
   // has values
@@ -115,3 +116,5 @@ void render_node(const Node *node, int margin);
 void render_state_info(int state);
 
 void clue_tile_45_checker(arr_Nodes *n);
+void clue_tile_45_checker_single_node(arr_Nodes *arr, size_t x, size_t y);
+void clue_calculate_ids(arr_Nodes *arr);

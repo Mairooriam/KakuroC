@@ -6,30 +6,27 @@
 int main(void) {
   // Initialize the window
   InitWindow(800, 600, "Raylib Hello World");
-  size_t size = 125;
-  arr_Nodes grid = {0};
-  grid.capacity = 255;
-  grid.nodes = malloc(sizeof(Node *) * grid.capacity);
+  size_t size = 50;
 
   // TODO: use new create func with dimennsions -> test find 9 rows
-  size_t x_dimension = 5;
-  size_t y_dimension = 5;
-
+  size_t x_dimension = 11;
+  size_t y_dimension = 11;
+  arr_Nodes *grid = arr_nodes_create(x_dimension, y_dimension);
   size_t bufsize = 1024 * 15;
   char buf[bufsize];
   memset(buf, 0, bufsize);
   printf("Printing nodes: \n");
-  arr_nodes_to_string(buf, bufsize, &grid);
+  arr_nodes_to_string(buf, bufsize, grid);
   printf("%s nodes: \n", buf);
   for (size_t y = 0; y < x_dimension; y++) {
     for (size_t x = 0; x < y_dimension; x++) {
       Node *node = node_create_empty((Vec2u8){x, y}, size);
-      arr_nodes_add(&grid, node);
+      arr_nodes_add(grid, node);
     }
   }
   memset(buf, 0, bufsize);
   printf("Printing nodes: \n");
-  arr_nodes_to_string(buf, bufsize, &grid);
+  arr_nodes_to_string(buf, bufsize, grid);
   printf("nodes: \n%s", buf);
   int margin = 5;
   bool update = true;
@@ -37,7 +34,7 @@ int main(void) {
   float movement_timer = 0.0f;
   float movement_delay = 0.1f; // Move every 0.1 seconds when key held
   AppState state = APP_STATE_NONE;
-  arr_nodes_serialize("test.txt", &grid);
+  arr_nodes_serialize("test.txt", grid);
 
   arr_Nodes tmparr;
   tmparr.capacity = 64;
@@ -77,7 +74,7 @@ int main(void) {
       } else if (IsKeyReleased(KEY_S)) {
         if (sDown) {
           printf("[SAVE] - saving current map\n");
-          arr_nodes_serialize("savefile.txt", &grid);
+          arr_nodes_serialize("savefile.txt", grid);
         }
       }
 
@@ -89,10 +86,8 @@ int main(void) {
         if (lDown) {
           printf("[SAVE] - Loading \"savefile.txt\" map\n");
           // TODO: leakinGg memory not freeing old nodes
-          grid = (arr_Nodes){0};
-          grid.capacity = 128;
-          grid.nodes = malloc(sizeof(Node *) * 128);
-          arr_nodes_deserialize("savefile.txt", &grid);
+          grid = arr_nodes_create(grid->x_dimension, grid->y_dimension);
+          arr_nodes_deserialize("savefile.txt", grid);
         }
       }
 
@@ -103,7 +98,7 @@ int main(void) {
       } else if (IsKeyReleased(KEY_C)) {
         if (cDown) {
           size_t index = cursor->pos.y * y_dimension + cursor->pos.x;
-          Node *node = grid.nodes[index];
+          Node *node = grid->nodes[index];
           node->type = TILETYPE_CLUE;
           printf("Tile at index %zu (%u,%u) updated to clue.\n", index,
                  cursor->pos.x, cursor->pos.y);
@@ -117,7 +112,7 @@ int main(void) {
       } else if (IsKeyReleased(KEY_B)) {
         if (bDown) {
           size_t index = cursor->pos.y * y_dimension + cursor->pos.x;
-          Node *node = grid.nodes[index];
+          Node *node = grid->nodes[index];
           node->type = TILETYPE_BLOCKED;
           printf("Tile at index %zu (%u,%u) updated to blockeblockedd.\n",
                  index, cursor->pos.x, cursor->pos.y);
@@ -153,7 +148,24 @@ int main(void) {
           state = APP_STATE_NONE;
         }
       }
-
+      // CHECK TILE FOR 45 SUM
+      static bool tDown = false;
+      if (IsKeyDown(KEY_T)) {
+        tDown = true;
+      } else if (IsKeyReleased(KEY_T)) {
+        if (tDown) {
+          clue_tile_45_checker_single_node(grid, cursor->pos.x, cursor->pos.y);
+        }
+      }
+      // CHECK ALL TILES FOR 45 SUM
+      static bool aDown = false;
+      if (IsKeyDown(KEY_A)) {
+        aDown = true;
+      } else if (IsKeyReleased(KEY_A)) {
+        if (aDown) {
+          clue_tile_45_checker(grid);
+        }
+      }
       if (moved) {
         movement_timer = 0.0f;
       }
@@ -163,7 +175,7 @@ int main(void) {
     if (charPressed >= '0' && charPressed <= '9') {
       int number = charPressed - '0';
       size_t index = cursor->pos.y * y_dimension + cursor->pos.x;
-      Node *node = grid.nodes[index];
+      Node *node = grid->nodes[index];
       switch (node->type) {
       case TILETYPE_BLOCKED: {
       } break;
@@ -225,7 +237,7 @@ int main(void) {
     ClearBackground(RAYWHITE);
     DrawText("Hello, World!", 190, 200, 20, LIGHTGRAY);
 
-    render_grid(&grid, margin, x_dimension, y_dimension);
+    render_grid(grid, margin, x_dimension, y_dimension);
     render_node(cursor, margin);
     render_state_info(state);
     EndDrawing();
