@@ -166,6 +166,32 @@ int main(void) {
           clue_tile_45_checker(grid);
         }
       }
+
+      // CHECK POSSIBLE NUMBERS FOR TILE
+      static bool iDown = false;
+      if (IsKeyDown(KEY_I)) {
+        iDown = true;
+      } else if (IsKeyReleased(KEY_I)) {
+        if (iDown) {
+          clue_set_all_empty_sums(grid);
+        }
+      }
+
+      // print node info
+      static bool pDown = false;
+      if (IsKeyDown(KEY_P)) {
+        pDown = true;
+      } else if (IsKeyReleased(KEY_P)) {
+        if (pDown) {
+          size_t index = cursor->pos.y * y_dimension + cursor->pos.x;
+          Node *node = grid->nodes[index];
+          size_t bufsize = 1024;
+          char buf[bufsize];
+          node_to_string(buf, bufsize, node);
+          printf("%s", buf);
+        }
+      }
+
       if (moved) {
         movement_timer = 0.0f;
       }

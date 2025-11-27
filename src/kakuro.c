@@ -1,6 +1,7 @@
 #include "kakuro.h"
 #include <assert.h>
 #include <raylib.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 Node *node_create(Vec2u8 pos, TileType type, uint8_t value, uint8_t sum_x,
@@ -15,7 +16,8 @@ Node *node_create(Vec2u8 pos, TileType type, uint8_t value, uint8_t sum_x,
   node->sum_x = sum_x;
   node->sum_y = sum_y;
   node->size = size;
-
+  node->x_empty_count = 0;
+  node->y_empty_count = 0;
   return node;
 }
 
@@ -40,8 +42,13 @@ size_t node_to_string(char *buf, size_t bufsize, const Node *n) {
       snprintf(buf + written, bufsize + written, "value = %i\n", n->value);
   written +=
       snprintf(buf + written, bufsize + written, "sum_x = %i\n", n->sum_x);
+  written += snprintf(buf + written, bufsize + written, "x_empty_count = %i\n",
+                      n->x_empty_count);
   written +=
       snprintf(buf + written, bufsize + written, "sum_y = %i\n", n->sum_y);
+  written += snprintf(buf + written, bufsize + written, "y_empty_count = %i\n",
+                      n->y_empty_count);
+
   written +=
       snprintf(buf + written, bufsize + written, "size = %f\n\n", n->size);
 
@@ -67,7 +74,7 @@ size_t arr_nodes_to_string(char *buf, size_t bufsize, const arr_Nodes *arr) {
 }
 int arr_nodes_serialize(const char *path, const arr_Nodes *arr) {
   size_t written = 0;
-  size_t bufsize = 1024 * 10;
+  size_t bufsize = 1024 * 20;
   char *buf = malloc(bufsize);
   for (size_t i = 0; i < arr->size; i++) {
     written += node_to_string(buf + written, bufsize - written, arr->nodes[i]);
@@ -125,8 +132,14 @@ int arr_nodes_deserialize(const char *path, arr_Nodes *n) {
         printf("Parsed value: %hhu\n", tmpNode.value);
       } else if (sscanf(buf, "sum_x = %hhu", &tmpNode.sum_x) == 1) {
         printf("Parsed sum_x: %hhu\n", tmpNode.sum_x);
+      } else if (sscanf(buf, "x_empty_count = %hhu", &tmpNode.x_empty_count) ==
+                 1) {
+        printf("Parsed x_empty_count = %hhu\n", tmpNode.x_empty_count);
       } else if (sscanf(buf, "sum_y = %hhu", &tmpNode.sum_y) == 1) {
         printf("Parsed sum_y: %hhu\n", tmpNode.sum_y);
+      } else if (sscanf(buf, "y_empty_count = %hhu", &tmpNode.y_empty_count) ==
+                 1) {
+        printf("Parsed y_empty_count = %hhu\n", tmpNode.y_empty_count);
       } else if (sscanf(buf, "size = %f", &tmpNode.size) == 1) {
         printf("Parsed size: %f\n", tmpNode.size);
 
@@ -326,12 +339,14 @@ void clue_tile_45_checker_single_node(arr_Nodes *arr, size_t x, size_t y) {
     // check 9 right
     if (has_9_empty(arr, x, y, true)) {
       node->sum_x = 45;
+      node->x_empty_count = 9;
     } else {
       printf("Tile doenst have 45 sum on x axis\n");
     }
 
     if (has_9_empty(arr, x, y, false)) {
       node->sum_y = 45;
+      node->y_empty_count = 9;
     } else {
       printf("Tile doenst have 45 sum on y axis\n");
     }
@@ -347,6 +362,80 @@ void clue_tile_45_checker(arr_Nodes *n) {
 void clue_calculate_ids(arr_Nodes *arr) {
   for (size_t y = 0; y < arr->y_dimension; y++) {
     for (size_t x = 0; x < arr->x_dimension; x++) {
+    }
+  }
+}
+
+void clue_set_all_empty_sums(arr_Nodes *arr) {
+  // set sums
+  for (size_t y = 0; y < arr->y_dimension; y++) {
+    for (size_t x = 0; x < arr->x_dimension; x++) {
+      Node *node = arr_nodes_get(arr, x, y);
+      if (node->type == TILETYPE_CLUE) {
+        printf("hello from outside while but inside if\n");
+        // TODO: handle if there is more than 45 space? if needed
+        size_t x_temp = x;
+        size_t y_temp = y;
+        size_t x_count = 0;
+        size_t y_count = 0;
+        // Set nodes on x axis and count empty nodes on x axis
+        while (x_temp++ < arr->x_dimension - 1) {
+          Node *n = arr_nodes_get(arr, x_temp, y);
+          if (n->type == TILETYPE_EMPTY) {
+            printf("Hello this is empty node\n");
+            n->sum_x = node->sum_x;
+            x_count++;
+          } else {
+            break;
+          }
+          printf("cuyrrent x:%zu y:%zu\n", x_temp, y);
+        }
+
+        // Set nodes on y axis and count empty nodes on y axis
+        while (y_temp++ < arr->y_dimension - 1) {
+          Node *n = arr_nodes_get(arr, x, y_temp);
+          if (n->type == TILETYPE_EMPTY) {
+            printf("Hello this is empty node\n");
+            n->sum_y = node->sum_y;
+            y_count++;
+          } else {
+            break;
+          }
+          printf("cuyrrent x:%zu y:%zu\n", x, y_temp);
+        }
+
+        printf("x_count: %zu, y_count: %zu for clue at (%zu,%zu)\n", x_count,
+               y_count, x, y);
+
+        // Update count on the corresponding nodes
+        y_temp = y;
+        while (y_temp++ < arr->y_dimension - 1) {
+          Node *n = arr_nodes_get(arr, x, y_temp);
+          if (n->type == TILETYPE_EMPTY) {
+            printf("Hello this is empty node\n");
+            n->y_empty_count = y_count;
+            printf("Set y_empty_count = %zu for node at (%zu,%zu)\n", y_count,
+                   x, y_temp);
+          } else {
+            break;
+          }
+          printf("cuyrrent x:%zu y:%zu\n", x, y_temp);
+        }
+
+        x_temp = x;
+        while (x_temp++ < arr->x_dimension - 1) {
+          Node *n = arr_nodes_get(arr, x_temp, y);
+          if (n->type == TILETYPE_EMPTY) {
+            printf("Hello this is empty node\n");
+            n->x_empty_count = x_count;
+            printf("Set x_empty_count = %zu for node at (%zu,%zu)\n", x_count,
+                   x_temp, y);
+          } else {
+            break;
+          }
+          printf("cuyrrent x:%zu y:%zu\n", x_temp, y);
+        }
+      }
     }
   }
 }

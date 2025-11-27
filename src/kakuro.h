@@ -78,9 +78,10 @@ typedef struct {
   // TODO: make sums into vec2u8?
   // TODO: make data union and if it is type clue it has sums and if empty it
   // has values
-  uint8_t sum_y; // column
-  uint8_t sum_x; // row
-
+  uint8_t sum_y;         // column
+  uint8_t sum_x;         // row
+  uint8_t x_empty_count; // count of empty nodes for clue row or column
+  uint8_t y_empty_count;
   // TODO: split rendering stuff elsewhere? or keep here? maybe in grid?
   float size; // square size
 } Node;
@@ -108,7 +109,6 @@ int arr_nodes_serialize(const char *path, const arr_Nodes *nodes);
 int arr_nodes_deserialize(const char *path, arr_Nodes *nodes);
 arr_Nodes *arr_nodes_create(size_t x_dimension, size_t y_dimension);
 Node *arr_nodes_get(const arr_Nodes *arr, size_t x, size_t y);
-
 // KAKURO
 void render_grid(const arr_Nodes *arr, int margin, size_t x_dimension,
                  size_t y_dimension);
@@ -118,3 +118,7 @@ void render_state_info(int state);
 void clue_tile_45_checker(arr_Nodes *n);
 void clue_tile_45_checker_single_node(arr_Nodes *arr, size_t x, size_t y);
 void clue_calculate_ids(arr_Nodes *arr);
+void clue_calculate_possible_values(arr_Nodes *arr, size_t x, size_t y);
+void clue_set_all_empty_sums(
+    arr_Nodes *arr); // TODO: implement hashset and use hash of the clue nopdes
+                     // instead of iterating trough all
