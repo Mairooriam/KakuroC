@@ -1,11 +1,12 @@
 #include "kakuro.h"
+#include "raymath.h" // Required for: Lerp()
 #include <assert.h>
 #include <raylib.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-Node *node_create(Vec2u8 pos, TileType type, uint8_t value, uint8_t sum_x,
+Node *node_create(Vec2u8 pos, TileType type, uint8_t value[9], uint8_t sum_x,
                   uint8_t sum_y) {
   Node *node = malloc(sizeof(Node));
   if (!node)
@@ -142,10 +143,10 @@ int arr_nodes_deserialize(const char *path, arr_Nodes *n) {
                  1) {
         printf("Parsed x_empty_count = %hhu\n", tmpNode.x_empty_count);
       } else if (sscanf(buf, "sum_y = %hhu", &tmpNode.sum_y) == 1) {
-printf("Parsed sum_y: %hhu\n", tmpNode.sum_y);
+        printf("Parsed sum_y: %hhu\n", tmpNode.sum_y);
       } else if (sscanf(buf, "y_empty_count = %hhu", &tmpNode.y_empty_count) ==
                  1) {
-        
+
         printf("Parsed y_empty_count = %hhu\n", tmpNode.y_empty_count);
 
         Node *node = node_create(tmpNode.pos, tmpNode.type, tmpNode.value,
@@ -242,54 +243,75 @@ void render_grid(const arr_Nodes *arr, int margin, int size) {
   }
 }
 void render_node(const Node *n, int margin, int size) {
+  // TODO: change units into floats?
   int screen_x = (int)n->pos.x * (size + margin);
   int screen_y = (int)n->pos.y * (size + margin);
-
+  Rectangle rect = (Rectangle){screen_x, screen_y, size, size};
+  Rectangle x_text_rect =
+      (Rectangle){screen_x + size / 2, screen_y, size / 2, size / 2};
+  Rectangle y_text_rect =
+      (Rectangle){screen_x, screen_y + size / 2, size / 2, size / 2};
+  int fontSize = 18;
+  // TODO: probably bad to get font on rendering each node :))))
+  Font font = GetFontDefault();
   switch (n->type) {
   case TILETYPE_BLOCKED: {
-    DrawRectangle(screen_x, screen_y, size, size, (Color){0, 0, 0, 255});
+    DrawRectangleRec(rect, (Color){0, 0, 0, 255});
     DrawLine(screen_x, screen_y, screen_x + size, screen_y + size, BLACK);
   } break;
   case TILETYPE_EMPTY: {
     int r = n->pos.y * 50;
     int g = n->pos.x * 50;
-    DrawRectangle(screen_x, screen_y, size, size, (Color){r, g, 0, 255});
+    DrawRectangleRec(rect, (Color){r, g, 0, 255});
     // R   G  B
     char buf[3];
     snprintf(buf, 2, "%i", n->value);
-    DrawText(buf, screen_x + size / 2, screen_y + size / 2, 32, GRAY);
+    Vector2 textSize = MeasureTextEx(font, buf, fontSize, fontSize * .1f);
+    Vector2 textPos = (Vector2){
+        rect.x + Lerp(0.0f, rect.width - textSize.x, ((float)1) * 0.5f),
+        rect.y + Lerp(0.0f, rect.height - textSize.y, ((float)1) * 0.5f)};
+
+    DrawTextEx(font, buf, textPos, fontSize, fontSize * .1f, RAYWHITE);
+    DrawRectangleLinesEx(rect, 1.0f, RED);
+
     // TODO:draw id, render possible vlaues also?
   } break;
 
-  // TODO: add rendering for the sums
   case TILETYPE_CLUE: {
-    DrawRectangle(screen_x, screen_y, size, size, (Color){125, 125, 125, 255});
+    DrawRectangleRec(rect, (Color){125, 125, 125, 255});
     DrawLine(screen_x, screen_y, screen_x + size, screen_y + size, BLACK);
 
-    // TODO: proper size based text offsets
-
-    // X SUM TEXT
+    // SUMS TO CHARS
     char x_sum[5];
     snprintf(x_sum, 5, "%i", n->sum_x);
-    int x1_offset_left = -30;
-    int y1_offset_down = 10;
-    int x1 = screen_x + size + x1_offset_left;
-    int y1 = screen_y + y1_offset_down;
-    int fontsize = 32;
-    DrawText(x_sum, x1, y1, fontsize, RED);
-
-    // Y SUM TEXT
     char y_sum[5];
     snprintf(y_sum, 5, "%i", n->sum_y);
-    int x2_offset_right = 10;
-    int y2_offset_up = -40;
-    int x2 = screen_x + x2_offset_right;
-    int y2 = screen_y + size + y2_offset_up;
-    DrawText(y_sum, x2, y2, fontsize, RED);
+
+    // raylib [text] example - words alignment
+
+    // CALC TEXT POSITION X
+    Vector2 x_textSize = MeasureTextEx(font, x_sum, fontSize, fontSize * .1f);
+    Vector2 x_textPos =
+        (Vector2){x_text_rect.x + Lerp(0.0f, x_text_rect.width - x_textSize.x,
+                                       ((float)1) * 0.5f),
+                  x_text_rect.y + Lerp(0.0f, x_text_rect.height - x_textSize.y,
+                                       ((float)1) * 0.5f)};
+    // CALC TEXT POSITION Y
+    Vector2 y_textSize = MeasureTextEx(font, y_sum, fontSize, fontSize * .1f);
+    Vector2 y_textPos =
+        (Vector2){y_text_rect.x + Lerp(0.0f, y_text_rect.width - y_textSize.x,
+                                       ((float)1) * 0.5f),
+                  y_text_rect.y + Lerp(0.0f, y_text_rect.height - y_textSize.y,
+                                       ((float)1) * 0.5f)};
+    // Draws texts with bounding boxes
+    DrawTextEx(font, x_sum, x_textPos, fontSize, fontSize * .1f, RAYWHITE);
+    DrawRectangleLinesEx(x_text_rect, 1.0f, RED);
+    DrawTextEx(font, y_sum, y_textPos, fontSize, fontSize * .1f, RAYWHITE);
+    DrawRectangleLinesEx(y_text_rect, 1.0f, RED);
 
   } break;
   case TILETYPE_CURSOR: {
-    DrawRectangle(screen_x, screen_y, size, size, (Color){200, 0, 200, 175});
+    DrawRectangleRec(rect, (Color){200, 0, 200, 175});
 
   } break;
   }

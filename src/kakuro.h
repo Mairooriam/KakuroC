@@ -1,4 +1,5 @@
 #pragma once
+#include <raylib.h>
 #include <stdint.h>
 #include <stdlib.h>
 // Select map size ( 180 degree rotational symmetry about the point at the
@@ -73,7 +74,7 @@ typedef enum { APP_STATE_NONE, APP_STATE_X_SUM, APP_STATE_Y_SUM } AppState;
 typedef struct {
   Vec2u8 pos; // pos of cell
   TileType type;
-  uint8_t value; // value of cell
+  uint8_t values[9]; // value of cell
   int id;
   // TODO: make sums into vec2u8?
   // TODO: make data union and if it is type clue it has sums and if empty it
@@ -84,7 +85,7 @@ typedef struct {
   uint8_t y_empty_count;
 } Node;
 // TODO: add freeing of node
-Node *node_create(Vec2u8 pos, TileType type, uint8_t value, uint8_t sum_x,
+Node *node_create(Vec2u8 pos, TileType type, uint8_t values[9], uint8_t sum_x,
                   uint8_t sum_y);
 Node *node_create_empty(Vec2u8 pos);
 Node *node_create_clue(Vec2u8 pos, uint8_t sum_x, uint8_t sum_y);
@@ -119,3 +120,8 @@ void clue_calculate_possible_values(arr_Nodes *arr, size_t x, size_t y);
 void clue_set_all_empty_sums(
     arr_Nodes *arr); // TODO: implement hashset and use hash of the clue nopdes
                      // instead of iterating trough all
+
+typedef struct {
+  Vector2 current;
+  Vector2 lastFrame;
+} MouseWheel;
