@@ -6,15 +6,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-Node *node_create(Vec2u8 pos, TileType type, uint8_t value[9], uint8_t sum_x,
-                  uint8_t sum_y) {
+Node *node_create(Vec2u8 pos, TileType type, uint8_t sum_x, uint8_t sum_y) {
   Node *node = malloc(sizeof(Node));
   if (!node)
     return NULL;
 
   node->pos = pos;
   node->type = type;
-  node->value = value;
+  node->values = arr_uint8_t_create(9);
   node->sum_x = sum_x;
   node->sum_y = sum_y;
   node->x_empty_count = 0;
@@ -23,31 +22,33 @@ Node *node_create(Vec2u8 pos, TileType type, uint8_t value[9], uint8_t sum_x,
 }
 
 Node *node_create_empty(Vec2u8 pos) {
-  return node_create(pos, TILETYPE_EMPTY, 0, 0, 0);
+  return node_create(pos, TILETYPE_EMPTY, 0, 0);
 }
 Node *node_create_clue(Vec2u8 pos, uint8_t sum_x, uint8_t sum_y) {
-  return node_create(pos, TILETYPE_CLUE, 0, sum_x, sum_y);
+  return node_create(pos, TILETYPE_CLUE, sum_x, sum_y);
 }
 
 Node *node_create_blocked(Vec2u8 pos) {
-  return node_create(pos, TILETYPE_BLOCKED, 0, 0, 0);
+  return node_create(pos, TILETYPE_BLOCKED, 0, 0);
 }
 
 size_t node_to_string(char *buf, size_t bufsize, const Node *n) {
   size_t written = 0;
-  written += snprintf(buf + written, bufsize + written, "[NODE]\n");
-  written += snprintf(buf + written, bufsize + written, "pos = %i,%i\n",
+  written += snprintf(buf + written, bufsize - written, "[NODE]\n");
+  written += snprintf(buf + written, bufsize - written, "pos = %i,%i\n",
                       n->pos.x, n->pos.y);
-  written += snprintf(buf + written, bufsize + written, "type = %i\n", n->type);
+  written += snprintf(buf + written, bufsize - written, "type = %i\n", n->type);
+  written += snprintf(buf + written, bufsize - written, "value = ");
+  written += arr_uint8_t_to_string(buf + written, bufsize - written, n->values);
+  written += snprintf(buf + written, bufsize - written, "\n");
+
   written +=
-      snprintf(buf + written, bufsize + written, "value = %i\n", n->value);
-  written +=
-      snprintf(buf + written, bufsize + written, "sum_x = %i\n", n->sum_x);
-  written += snprintf(buf + written, bufsize + written, "x_empty_count = %i\n",
+      snprintf(buf + written, bufsize - written, "sum_x = %i\n", n->sum_x);
+  written += snprintf(buf + written, bufsize - written, "x_empty_count = %i\n",
                       n->x_empty_count);
   written +=
-      snprintf(buf + written, bufsize + written, "sum_y = %i\n", n->sum_y);
-  written += snprintf(buf + written, bufsize + written, "y_empty_count = %i\n",
+      snprintf(buf + written, bufsize - written, "sum_y = %i\n", n->sum_y);
+  written += snprintf(buf + written, bufsize - written, "y_empty_count = %i\n",
                       n->y_empty_count);
 
   return written;
@@ -135,9 +136,15 @@ int arr_nodes_deserialize(const char *path, arr_Nodes *n) {
         printf("Parsed pos: %hhu,%hhu\n", tmpNode.pos.x, tmpNode.pos.y);
       } else if (sscanf(buf, "type = %i", (int *)&tmpNode.type) == 1) {
         printf("Parsed type: %i\n", tmpNode.type);
-      } else if (sscanf(buf, "value = %hhu", &tmpNode.value) == 1) {
-        printf("Parsed value: %hhu\n", tmpNode.value);
-      } else if (sscanf(buf, "sum_x = %hhu", &tmpNode.sum_x) == 1) {
+
+      }
+
+      // TODO: implement values scanning
+      // else if (sscanf(buf, "value = %hhu", &tmpNode.value) == 1) {
+      //   printf("Parsed value: %hhu\n", tmpNode.value);
+      // }
+
+      else if (sscanf(buf, "sum_x = %hhu", &tmpNode.sum_x) == 1) {
         printf("Parsed sum_x: %hhu\n", tmpNode.sum_x);
       } else if (sscanf(buf, "x_empty_count = %hhu", &tmpNode.x_empty_count) ==
                  1) {
@@ -149,8 +156,8 @@ int arr_nodes_deserialize(const char *path, arr_Nodes *n) {
 
         printf("Parsed y_empty_count = %hhu\n", tmpNode.y_empty_count);
 
-        Node *node = node_create(tmpNode.pos, tmpNode.type, tmpNode.value,
-                                 tmpNode.sum_x, tmpNode.sum_y);
+        Node *node = node_create(tmpNode.pos, tmpNode.type, tmpNode.sum_x,
+                                 tmpNode.sum_y);
         if (node) {
           arr_nodes_add(n, node);
           printf("Added node to array\n");
@@ -262,10 +269,18 @@ void render_node(const Node *n, int margin, int size) {
   case TILETYPE_EMPTY: {
     int r = n->pos.y * 50;
     int g = n->pos.x * 50;
+    Rectangle r1 = (Rectangle){rect.x, rect.y, (float)size, (float)size / 3};
+    Rectangle r2 = (Rectangle){rect.x, rect.y + (float)size / 3, (float)size,
+                               (float)size / 3};
+    Rectangle r3 = (Rectangle){rect.x, rect.y + (float)size / 3 * 2,
+                               (float)size, (float)size / 3};
     DrawRectangleRec(rect, (Color){r, g, 0, 255});
     // R   G  B
-    char buf[3];
-    snprintf(buf, 2, "%i", n->value);
+    // TODO: have cache for each node for the string???
+    //
+    char buf[100];
+    arr_uint8_t_to_string(buf, 100, n->values);
+
     Vector2 textSize = MeasureTextEx(font, buf, fontSize, fontSize * .1f);
     Vector2 textPos = (Vector2){
         rect.x + Lerp(0.0f, rect.width - textSize.x, ((float)1) * 0.5f),
@@ -274,6 +289,20 @@ void render_node(const Node *n, int margin, int size) {
     DrawTextEx(font, buf, textPos, fontSize, fontSize * .1f, RAYWHITE);
     DrawRectangleLinesEx(rect, 1.0f, RED);
 
+    char str[200];
+    //        // 1 1 1
+    // 1 1 1  // 1 1 1
+    //        //
+    // TODO: ADD printing of values
+    // for (size_t i = 0; i < n->values->count; i++) {
+    //   if (i <= 2) {
+    //
+    //
+    //   }
+    // }
+    DrawRectangleLinesEx(r1, 1.0f, ORANGE);
+    DrawRectangleLinesEx(r2, 1.0f, PURPLE);
+    DrawRectangleLinesEx(r3, 1.0f, PINK);
     // TODO:draw id, render possible vlaues also?
   } break;
 
@@ -465,4 +494,64 @@ void clue_set_all_empty_sums(arr_Nodes *arr) {
       }
     }
   }
+}
+
+bool arr_uint8_t_add(arr_uint8_t *arr, uint8_t val) {
+  if (arr->count >= arr->capacity) {
+    size_t newSize = arr->capacity * 2;
+    uint8_t *temp = realloc(arr->data, sizeof(uint8_t) * newSize);
+
+    if (!temp) {
+      return false;
+    }
+
+    arr->capacity = newSize;
+    arr->data = temp;
+  }
+  arr->data[arr->count] = val;
+  arr->count++;
+  return true;
+}
+size_t arr_uint8_t_to_string(char *buf, size_t bufsize,
+                             const arr_uint8_t *arr) {
+  size_t written = 0;
+  written += snprintf(buf + written, bufsize - written, "[");
+  for (size_t i = 0; i < arr->count; i++) {
+    written += snprintf(buf + written, bufsize - written, "%hhu", arr->data[i]);
+    if (i < arr->count - 1) {
+      written += snprintf(buf + written, bufsize - written, ",");
+    }
+  }
+  written += snprintf(buf + written, bufsize - written, "]");
+
+  return written;
+}
+int arr_uint8_t_deserialize(const char *str, arr_uint8_t *nodes) {
+  (void)str;
+  (void)nodes;
+  // TODO: implement
+  // will be [1,1,1,1,1,1,1]
+  // if (sscanf(buf, "type = %i") == 1) {
+  // }
+  return -1;
+}
+
+arr_uint8_t *arr_uint8_t_create(size_t initial_capacity) {
+  arr_uint8_t *arr = malloc(sizeof(arr_uint8_t));
+  if (!arr) {
+    printf("Failed to allocate arr_uint8_t struct\n");
+    return NULL;
+  }
+
+  arr->count = 0;
+  arr->capacity = initial_capacity;
+  arr->data = malloc(sizeof(uint8_t) * initial_capacity);
+
+  if (!arr->data) {
+    printf("Failed to allocate data array\n");
+    free(arr);
+    return NULL;
+  }
+
+  return arr;
 }

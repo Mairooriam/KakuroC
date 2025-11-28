@@ -39,7 +39,7 @@ int main(void) {
   printf("nodes: \n%s", buf);
   int margin = 5;
   bool update = true;
-  Node *cursor = node_create((Vec2u8){0, 0}, TILETYPE_CURSOR, 0, 0, 0);
+  Node *cursor = node_create((Vec2u8){0, 0}, TILETYPE_CURSOR, 0, 0);
   AppState state = APP_STATE_NONE;
   arr_nodes_serialize("test.txt", grid);
   // TODO: fix leak
@@ -195,16 +195,29 @@ int main(void) {
 
       } break;
       case TILETYPE_EMPTY: {
-        node->value = (uint8_t)number;
-        node->type = TILETYPE_EMPTY;
-        printf("[INPUT] Set tile at (%u, %u) to %d\n", cursor->pos.x,
-               cursor->pos.y, number);
+        state = APP_STATE_TYPING;
+        Node *node = arr_nodes_get(grid, cursor->pos.x, cursor->pos.y);
+        arr_uint8_t_add(node->values, number);
+        printf("[INPUT] Added %d to tile (%u, %u)\n", number, cursor->pos.x,
+               cursor->pos.y);
       } break;
 
       default:
         break;
       }
     }
+
+    if (IsKeyReleased(KEY_ENTER)) {
+      state = APP_STATE_NONE;
+    }
+
+    if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyReleased(KEY_K)) {
+      char buf[1024];
+      Node *node = arr_nodes_get(grid, cursor->pos.x, cursor->pos.y);
+      arr_uint8_t_to_string(buf, 1025, node->values);
+      printf("(%hhu,%hhu)values: %s", cursor->pos.x, cursor->pos.y, buf);
+    }
+
     // END OF INPUTS
 
     // UPDATE

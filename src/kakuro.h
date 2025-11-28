@@ -69,12 +69,28 @@ typedef enum {
   TILETYPE_BLOCKED // Solid black cell (no clues)
 } TileType;
 
-typedef enum { APP_STATE_NONE, APP_STATE_X_SUM, APP_STATE_Y_SUM } AppState;
+typedef enum {
+  APP_STATE_NONE,
+  APP_STATE_X_SUM,
+  APP_STATE_Y_SUM,
+  APP_STATE_TYPING
+} AppState;
+
+typedef struct {
+  uint8_t *data;
+  size_t capacity;
+  size_t count;
+} arr_uint8_t;
+bool arr_uint8_t_add(arr_uint8_t *arr, uint8_t val);
+size_t arr_uint8_t_to_string(char *buf, size_t bufsize, const arr_uint8_t *arr);
+int arr_uint8_t_serialize(const char *path, const arr_uint8_t *nodes);
+int arr_uint8_t_deserialize(const char *path, arr_uint8_t *nodes);
+arr_uint8_t *arr_uint8_t_create(size_t initial_capacity);
 
 typedef struct {
   Vec2u8 pos; // pos of cell
   TileType type;
-  uint8_t values[9]; // value of cell
+  arr_uint8_t *values; // value of cell
   int id;
   // TODO: make sums into vec2u8?
   // TODO: make data union and if it is type clue it has sums and if empty it
@@ -85,8 +101,7 @@ typedef struct {
   uint8_t y_empty_count;
 } Node;
 // TODO: add freeing of node
-Node *node_create(Vec2u8 pos, TileType type, uint8_t values[9], uint8_t sum_x,
-                  uint8_t sum_y);
+Node *node_create(Vec2u8 pos, TileType type, uint8_t sum_x, uint8_t sum_y);
 Node *node_create_empty(Vec2u8 pos);
 Node *node_create_clue(Vec2u8 pos, uint8_t sum_x, uint8_t sum_y);
 Node *node_create_blocked(Vec2u8 pos);
@@ -108,6 +123,7 @@ int arr_nodes_serialize(const char *path, const arr_Nodes *nodes);
 int arr_nodes_deserialize(const char *path, arr_Nodes *nodes);
 arr_Nodes *arr_nodes_create(size_t x_dimension, size_t y_dimension);
 Node *arr_nodes_get(const arr_Nodes *arr, size_t x, size_t y);
+
 // KAKURO
 void render_grid(const arr_Nodes *arr, int margin, int size);
 void render_node(const Node *node, int margin, int size);
@@ -120,8 +136,3 @@ void clue_calculate_possible_values(arr_Nodes *arr, size_t x, size_t y);
 void clue_set_all_empty_sums(
     arr_Nodes *arr); // TODO: implement hashset and use hash of the clue nopdes
                      // instead of iterating trough all
-
-typedef struct {
-  Vector2 current;
-  Vector2 lastFrame;
-} MouseWheel;
