@@ -3,9 +3,10 @@
 #include <raylib.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 Node *node_create(Vec2u8 pos, TileType type, uint8_t value, uint8_t sum_x,
-                  uint8_t sum_y, float size) {
+                  uint8_t sum_y) {
   Node *node = malloc(sizeof(Node));
   if (!node)
     return NULL;
@@ -15,21 +16,20 @@ Node *node_create(Vec2u8 pos, TileType type, uint8_t value, uint8_t sum_x,
   node->value = value;
   node->sum_x = sum_x;
   node->sum_y = sum_y;
-  node->size = size;
   node->x_empty_count = 0;
   node->y_empty_count = 0;
   return node;
 }
 
-Node *node_create_empty(Vec2u8 pos, float size) {
-  return node_create(pos, TILETYPE_EMPTY, 0, 0, 0, size);
+Node *node_create_empty(Vec2u8 pos) {
+  return node_create(pos, TILETYPE_EMPTY, 0, 0, 0);
 }
-Node *node_create_clue(Vec2u8 pos, uint8_t sum_x, uint8_t sum_y, float size) {
-  return node_create(pos, TILETYPE_CLUE, 0, sum_x, sum_y, size);
+Node *node_create_clue(Vec2u8 pos, uint8_t sum_x, uint8_t sum_y) {
+  return node_create(pos, TILETYPE_CLUE, 0, sum_x, sum_y);
 }
 
-Node *node_create_blocked(Vec2u8 pos, float size) {
-  return node_create(pos, TILETYPE_BLOCKED, 0, 0, 0, size);
+Node *node_create_blocked(Vec2u8 pos) {
+  return node_create(pos, TILETYPE_BLOCKED, 0, 0, 0);
 }
 
 size_t node_to_string(char *buf, size_t bufsize, const Node *n) {
@@ -49,16 +49,22 @@ size_t node_to_string(char *buf, size_t bufsize, const Node *n) {
   written += snprintf(buf + written, bufsize + written, "y_empty_count = %i\n",
                       n->y_empty_count);
 
-  written +=
-      snprintf(buf + written, bufsize + written, "size = %f\n\n", n->size);
-
   return written;
 }
 
 bool arr_nodes_add(arr_Nodes *arr, Node *node) {
   if (arr->size >= arr->capacity) {
-    // TODO: implement
-    return false;
+    size_t new_capacity = arr->capacity * 2;
+
+    Node **temp = realloc(arr->nodes, sizeof(Node *) * new_capacity);
+
+    if (!temp) {
+      printf("Failed to reallocate nodes array\n");
+      return false;
+    }
+
+    arr->nodes = temp;
+    arr->capacity = new_capacity;
   }
 
   arr->nodes[arr->size] = node;
@@ -136,15 +142,14 @@ int arr_nodes_deserialize(const char *path, arr_Nodes *n) {
                  1) {
         printf("Parsed x_empty_count = %hhu\n", tmpNode.x_empty_count);
       } else if (sscanf(buf, "sum_y = %hhu", &tmpNode.sum_y) == 1) {
-        printf("Parsed sum_y: %hhu\n", tmpNode.sum_y);
+printf("Parsed sum_y: %hhu\n", tmpNode.sum_y);
       } else if (sscanf(buf, "y_empty_count = %hhu", &tmpNode.y_empty_count) ==
                  1) {
+        
         printf("Parsed y_empty_count = %hhu\n", tmpNode.y_empty_count);
-      } else if (sscanf(buf, "size = %f", &tmpNode.size) == 1) {
-        printf("Parsed size: %f\n", tmpNode.size);
 
         Node *node = node_create(tmpNode.pos, tmpNode.type, tmpNode.value,
-                                 tmpNode.sum_x, tmpNode.sum_y, tmpNode.size);
+                                 tmpNode.sum_x, tmpNode.sum_y);
         if (node) {
           arr_nodes_add(n, node);
           printf("Added node to array\n");
@@ -170,6 +175,9 @@ int arr_nodes_deserialize(const char *path, arr_Nodes *n) {
   return 0;
 }
 arr_Nodes *arr_nodes_create(size_t x_dimension, size_t y_dimension) {
+  if (x_dimension == 0 || y_dimension == 0) {
+    assert(0 && "Cannot make array with dimensions of 0,0");
+  }
   arr_Nodes *arr = malloc(sizeof(arr_Nodes));
   if (!arr) {
     printf("Failed to allocate arr_Nodes struct\n");
@@ -206,8 +214,7 @@ static float animation_delay = 0.05f; // Delay between each square (seconds)
 // TODO: make new struct for grid which has dimensions maybe 2d array? or stay
 // in 1d?
 //
-void render_grid(const arr_Nodes *arr, int margin, size_t x_dimension,
-                 size_t y_dimension) {
+void render_grid(const arr_Nodes *arr, int margin, int size) {
 #ifdef ANIMATED
 
   animation_timer += GetFrameTime();
@@ -216,15 +223,15 @@ void render_grid(const arr_Nodes *arr, int margin, size_t x_dimension,
     animation_timer = 0.0f;
   }
 #endif
-  for (size_t y = 0; y < x_dimension; y++) {
-    for (size_t x = 0; x < y_dimension; x++) {
-      size_t index = x * x_dimension + y;
+  for (size_t y = 0; y < arr->x_dimension; y++) {
+    for (size_t x = 0; x < arr->y_dimension; x++) {
+      size_t index = x * arr->x_dimension + y;
 #ifdef ANIMATED
       if (index < animation_index) {
 #endif /* ifdef ANIMATED */
         Node *n = arr->nodes[index];
 
-        render_node(n, margin);
+        render_node(n, margin, size);
 #ifdef ANIMATED
       }
       if (animation_index >= (x_dimension * y_dimension)) {
@@ -234,31 +241,30 @@ void render_grid(const arr_Nodes *arr, int margin, size_t x_dimension,
     }
   }
 }
-void render_node(const Node *n, int margin) {
-  int screen_x = (int)n->pos.x * (n->size + margin);
-  int screen_y = (int)n->pos.y * (n->size + margin);
+void render_node(const Node *n, int margin, int size) {
+  int screen_x = (int)n->pos.x * (size + margin);
+  int screen_y = (int)n->pos.y * (size + margin);
 
   switch (n->type) {
   case TILETYPE_BLOCKED: {
-    DrawRectangle(screen_x, screen_y, n->size, n->size, (Color){0, 0, 0, 255});
-    DrawLine(screen_x, screen_y, screen_x + n->size, screen_y + n->size, BLACK);
+    DrawRectangle(screen_x, screen_y, size, size, (Color){0, 0, 0, 255});
+    DrawLine(screen_x, screen_y, screen_x + size, screen_y + size, BLACK);
   } break;
   case TILETYPE_EMPTY: {
     int r = n->pos.y * 50;
     int g = n->pos.x * 50;
-    DrawRectangle(screen_x, screen_y, n->size, n->size, (Color){r, g, 0, 255});
+    DrawRectangle(screen_x, screen_y, size, size, (Color){r, g, 0, 255});
     // R   G  B
     char buf[3];
     snprintf(buf, 2, "%i", n->value);
-    DrawText(buf, screen_x + n->size / 2, screen_y + n->size / 2, 32, GRAY);
+    DrawText(buf, screen_x + size / 2, screen_y + size / 2, 32, GRAY);
     // TODO:draw id, render possible vlaues also?
   } break;
 
   // TODO: add rendering for the sums
   case TILETYPE_CLUE: {
-    DrawRectangle(screen_x, screen_y, n->size, n->size,
-                  (Color){125, 125, 125, 255});
-    DrawLine(screen_x, screen_y, screen_x + n->size, screen_y + n->size, BLACK);
+    DrawRectangle(screen_x, screen_y, size, size, (Color){125, 125, 125, 255});
+    DrawLine(screen_x, screen_y, screen_x + size, screen_y + size, BLACK);
 
     // TODO: proper size based text offsets
 
@@ -267,7 +273,7 @@ void render_node(const Node *n, int margin) {
     snprintf(x_sum, 5, "%i", n->sum_x);
     int x1_offset_left = -30;
     int y1_offset_down = 10;
-    int x1 = screen_x + n->size + x1_offset_left;
+    int x1 = screen_x + size + x1_offset_left;
     int y1 = screen_y + y1_offset_down;
     int fontsize = 32;
     DrawText(x_sum, x1, y1, fontsize, RED);
@@ -278,13 +284,12 @@ void render_node(const Node *n, int margin) {
     int x2_offset_right = 10;
     int y2_offset_up = -40;
     int x2 = screen_x + x2_offset_right;
-    int y2 = screen_y + n->size + y2_offset_up;
+    int y2 = screen_y + size + y2_offset_up;
     DrawText(y_sum, x2, y2, fontsize, RED);
 
   } break;
   case TILETYPE_CURSOR: {
-    DrawRectangle(screen_x, screen_y, n->size, n->size,
-                  (Color){200, 0, 200, 175});
+    DrawRectangle(screen_x, screen_y, size, size, (Color){200, 0, 200, 175});
 
   } break;
   }

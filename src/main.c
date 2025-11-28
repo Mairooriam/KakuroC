@@ -20,7 +20,7 @@ int main(void) {
   printf("%s nodes: \n", buf);
   for (size_t y = 0; y < x_dimension; y++) {
     for (size_t x = 0; x < y_dimension; x++) {
-      Node *node = node_create_empty((Vec2u8){x, y}, size);
+      Node *node = node_create_empty((Vec2u8){x, y});
       arr_nodes_add(grid, node);
     }
   }
@@ -30,16 +30,15 @@ int main(void) {
   printf("nodes: \n%s", buf);
   int margin = 5;
   bool update = true;
-  Node *cursor = node_create((Vec2u8){0, 0}, TILETYPE_CURSOR, 0, 0, 0, size);
+  Node *cursor = node_create((Vec2u8){0, 0}, TILETYPE_CURSOR, 0, 0, 0);
   float movement_timer = 0.0f;
   float movement_delay = 0.1f; // Move every 0.1 seconds when key held
   AppState state = APP_STATE_NONE;
   arr_nodes_serialize("test.txt", grid);
 
-  arr_Nodes tmparr;
-  tmparr.capacity = 64;
-  tmparr.nodes = malloc(sizeof(Node *) * 64);
-  arr_nodes_deserialize("test.txt", &tmparr);
+  // TODO: fix leak
+  arr_Nodes *tmparr = arr_nodes_create(x_dimension, y_dimension);
+  arr_nodes_deserialize("test.txt", tmparr);
   while (!WindowShouldClose()) {
     float delta_time = GetFrameTime(); // Get time since last frame
 
@@ -263,8 +262,8 @@ int main(void) {
     ClearBackground(RAYWHITE);
     DrawText("Hello, World!", 190, 200, 20, LIGHTGRAY);
 
-    render_grid(grid, margin, x_dimension, y_dimension);
-    render_node(cursor, margin);
+    render_grid(grid, margin, size);
+    render_node(cursor, margin, size);
     render_state_info(state);
     EndDrawing();
   }
