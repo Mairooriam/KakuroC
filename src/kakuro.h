@@ -139,3 +139,23 @@ void clue_set_all_empty_sums(
 
 Vector2 text_calculate_position(const Rectangle *rect, Font font,
                                 float fontsize, char *buf);
+
+// Context
+typedef struct {
+  Node *Cursor_tile;
+  arr_Nodes *grid;
+  AppState state;
+  float mWheel;
+  Camera2D *camera;
+  int margin;
+  int size;
+} KakuroContext;
+
+// INPUT
+void input_process(KakuroContext *ctx);
+void input_cursor_tile(KakuroContext *ctx);
+void input_keys(KakuroContext *ctx);
+void input_state(KakuroContext *ctx);
+void input_mouse(KakuroContext *ctx);
+
+void app_update(KakuroContext *ctx);

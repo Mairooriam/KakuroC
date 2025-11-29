@@ -581,3 +581,197 @@ Vector2 text_calculate_position(const Rectangle *rect, Font font,
       rect->y + Lerp(0.0f, rect->height - textSize.y, ((float)1) * 0.5f)};
   return textPos;
 }
+
+void input_process(KakuroContext *ctx) {
+  input_cursor_tile(ctx);
+  input_keys(ctx);
+  input_mouse(ctx);
+  input_state(ctx);
+}
+
+void input_cursor_tile(KakuroContext *ctx) {
+  // START OF INPUTS
+  Node *cursor = ctx->Cursor_tile;
+  arr_Nodes *grid = ctx->grid;
+  // TODO: add if held down for xxx frames -> it goes into isKeyPressed mode
+  if (IsKeyPressed(KEY_RIGHT) && cursor->pos.x < grid->x_dimension - 1) {
+    cursor->pos.x++;
+    printf("[MOVE] Right to (%u, %u)\n", cursor->pos.x, cursor->pos.y);
+  }
+
+  if (IsKeyPressed(KEY_LEFT) && cursor->pos.x > 0) {
+    cursor->pos.x--;
+    printf("[MOVE] Left to (%u, %u)\n", cursor->pos.x, cursor->pos.y);
+  }
+  if (IsKeyPressed(KEY_UP) && cursor->pos.y > 0) {
+    cursor->pos.y--;
+    printf("[MOVE] Up to (%u, %u)\n", cursor->pos.x, cursor->pos.y);
+  }
+  if (IsKeyPressed(KEY_DOWN) && cursor->pos.y < grid->y_dimension - 1) {
+    cursor->pos.y++;
+    printf("[MOVE] Down to (%u, %u)\n", cursor->pos.x, cursor->pos.y);
+  }
+}
+
+void input_keys(KakuroContext *ctx) {
+  // SAVING
+  Node *cursor = ctx->Cursor_tile;
+  if (IsKeyDown(KEY_S)) {
+  } else if (IsKeyReleased(KEY_S)) {
+    printf("[SAVE] - saving current map\n");
+    arr_nodes_serialize("savefile.txt", ctx->grid);
+  }
+
+  // LOADING
+  if (IsKeyDown(KEY_L)) {
+  } else if (IsKeyReleased(KEY_L)) {
+    printf("[SAVE] - Loading \"savefile.txt\" map\n");
+    // TODO: leakinGg memory not freeing old nodes
+    ctx->grid =
+        arr_nodes_create(ctx->grid->x_dimension, ctx->grid->y_dimension);
+    arr_nodes_deserialize("savefile.txt", ctx->grid);
+  }
+
+  // PLACING CLUE
+  if (IsKeyDown(KEY_C)) {
+  } else if (IsKeyReleased(KEY_C)) {
+    size_t index = cursor->pos.y * ctx->grid->y_dimension + cursor->pos.x;
+    Node *node = ctx->grid->nodes[index];
+    node->type = TILETYPE_CLUE;
+    printf("Tile at index %zu (%u,%u) updated to clue.\n", index, cursor->pos.x,
+           cursor->pos.y);
+  }
+
+  // PLACING BLOCED
+  if (IsKeyDown(KEY_B)) {
+  } else if (IsKeyReleased(KEY_B)) {
+    size_t index = cursor->pos.y * ctx->grid->y_dimension + cursor->pos.x;
+    Node *node = ctx->grid->nodes[index];
+    node->type = TILETYPE_BLOCKED;
+    printf("Tile at index %zu (%u,%u) updated to blockeblockedd.\n", index,
+           cursor->pos.x, cursor->pos.y);
+  }
+
+  // print node info
+  if (IsKeyDown(KEY_P)) {
+  } else if (IsKeyReleased(KEY_P)) {
+    size_t index = cursor->pos.y * ctx->grid->y_dimension + cursor->pos.x;
+    Node *node = ctx->grid->nodes[index];
+    size_t bufsize = 1024;
+    char buf[bufsize];
+    node_to_string(buf, bufsize, node);
+    printf("%s", buf);
+  }
+  // CHECK TILE FOR 45 SUM
+  if (IsKeyDown(KEY_T)) {
+  } else if (IsKeyReleased(KEY_T)) {
+    clue_tile_45_checker_single_node(ctx->grid, cursor->pos.x, cursor->pos.y);
+  }
+  // CHECK ALL TILES FOR 45 SUM
+  if (IsKeyDown(KEY_A)) {
+  } else if (IsKeyReleased(KEY_A)) {
+    clue_tile_45_checker(ctx->grid);
+  }
+
+  // CHECK POSSIBLE NUMBERS FOR TILE
+  if (IsKeyDown(KEY_I)) {
+  } else if (IsKeyReleased(KEY_I)) {
+    clue_set_all_empty_sums(ctx->grid);
+  }
+
+  int charPressed = GetCharPressed();
+  if (charPressed >= '0' && charPressed <= '9') {
+    int number = charPressed - '0';
+    size_t index = cursor->pos.y * ctx->grid->y_dimension + cursor->pos.x;
+    Node *node = ctx->grid->nodes[index];
+    switch (node->type) {
+    case TILETYPE_BLOCKED: {
+    } break;
+    case TILETYPE_CLUE: {
+      switch (ctx->state) {
+      case APP_STATE_NONE: {
+      } break;
+      case APP_STATE_X_SUM: {
+        if (number == 0) {
+          node->sum_x = 0;
+        } else {
+          node->sum_x += number;
+        }
+
+      } break;
+      case APP_STATE_Y_SUM: {
+        if (number == 0) {
+          node->sum_y = 0;
+        } else {
+          node->sum_y += number;
+        }
+
+      } break;
+      default:
+        break;
+      }
+
+    } break;
+    case TILETYPE_EMPTY: {
+      ctx->state = APP_STATE_TYPING;
+      Node *node = arr_nodes_get(ctx->grid, cursor->pos.x, cursor->pos.y);
+      if (node->values->count <= 8) {
+        arr_uint8_t_add(node->values, number);
+        printf("[INPUT] Added %d to tile (%u, %u)\n", number, cursor->pos.x,
+               cursor->pos.y);
+      }
+    } break;
+
+    default:
+      break;
+    }
+  }
+  if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyReleased(KEY_K)) {
+    char buf[1024];
+    Node *node = arr_nodes_get(ctx->grid, cursor->pos.x, cursor->pos.y);
+    arr_uint8_t_to_string(buf, 1025, node->values);
+    printf("(%hhu,%hhu)values: %s", cursor->pos.x, cursor->pos.y, buf);
+  }
+}
+
+void input_state(KakuroContext *ctx) {
+  // CHANGE STATE TO X SUM
+  if (IsKeyDown(KEY_X)) {
+  } else if (IsKeyReleased(KEY_X)) {
+    ctx->state = APP_STATE_X_SUM;
+  }
+
+  // PLACING BLOCED
+  if (IsKeyDown(KEY_Y)) {
+  } else if (IsKeyReleased(KEY_Y)) {
+    ctx->state = APP_STATE_Y_SUM;
+  }
+
+  // CHANGE STATE
+  if (IsKeyDown(KEY_N)) {
+  } else if (IsKeyReleased(KEY_N)) {
+    ctx->state = APP_STATE_NONE;
+  }
+  if (IsKeyReleased(KEY_ENTER)) {
+    ctx->state = APP_STATE_NONE;
+  }
+}
+void input_mouse(KakuroContext *ctx) {
+  // SCROLL
+  // raylib [core] example - 2d camera mouse zoom
+  Camera2D *camera = ctx->camera;
+  ctx->mWheel = GetMouseWheelMove();
+  if (ctx->mWheel != 0) {
+    Vector2 mouseWorldPos = GetScreenToWorld2D(GetMousePosition(), *camera);
+    camera->offset = GetMousePosition();
+    camera->target = mouseWorldPos;
+    float scale = 0.2f * ctx->mWheel;
+    camera->zoom = Clamp(expf(logf(camera->zoom) + scale), 0.125f, 256.0f);
+    printf("camera zoom: %f\n", camera->zoom);
+  }
+}
+
+void app_update(KakuroContext *ctx) {
+  (void)ctx;
+  printf("UPDATE NOT IMPLEMENTED");
+}
