@@ -136,3 +136,6 @@ void clue_calculate_possible_values(arr_Nodes *arr, size_t x, size_t y);
 void clue_set_all_empty_sums(
     arr_Nodes *arr); // TODO: implement hashset and use hash of the clue nopdes
                      // instead of iterating trough all
+
+Vector2 text_calculate_position(const Rectangle *rect, Font font,
+                                float fontsize, char *buf);

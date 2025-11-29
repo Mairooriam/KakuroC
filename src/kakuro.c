@@ -261,6 +261,7 @@ void render_node(const Node *n, int margin, int size) {
   int fontSize = 18;
   // TODO: probably bad to get font on rendering each node :))))
   Font font = GetFontDefault();
+
   switch (n->type) {
   case TILETYPE_BLOCKED: {
     DrawRectangleRec(rect, (Color){0, 0, 0, 255});
@@ -278,28 +279,44 @@ void render_node(const Node *n, int margin, int size) {
     // R   G  B
     // TODO: have cache for each node for the string???
     //
-    char buf[100];
-    arr_uint8_t_to_string(buf, 100, n->values);
-
-    Vector2 textSize = MeasureTextEx(font, buf, fontSize, fontSize * .1f);
-    Vector2 textPos = (Vector2){
-        rect.x + Lerp(0.0f, rect.width - textSize.x, ((float)1) * 0.5f),
-        rect.y + Lerp(0.0f, rect.height - textSize.y, ((float)1) * 0.5f)};
-
-    DrawTextEx(font, buf, textPos, fontSize, fontSize * .1f, RAYWHITE);
-    DrawRectangleLinesEx(rect, 1.0f, RED);
-
-    char str[200];
     //        // 1 1 1
     // 1 1 1  // 1 1 1
     //        //
-    // TODO: ADD printing of values
-    // for (size_t i = 0; i < n->values->count; i++) {
-    //   if (i <= 2) {
-    //
-    //
-    //   }
-    // }
+    char b1[1024] = {0}, b2[1024] = {0}, b3[1024] = {0};
+    size_t w1 = 0, w2 = 0, w3 = 0;
+
+    for (size_t i = 0; i < n->values->count; i++) {
+      if (i < 3) { // First line: indices 0, 1, 2
+        w1 += snprintf(b1 + w1, sizeof(b1) - w1, "%hhu", n->values->data[i]);
+        if (i < 2 && i + 1 < n->values->count) {
+          w1 += snprintf(b1 + w1, sizeof(b1) - w1, ",");
+        }
+      } else if (i < 6) { // Second line: indices 3, 4, 5
+        w2 += snprintf(b2 + w2, sizeof(b2) - w2, "%hhu", n->values->data[i]);
+        if (i < 5 && i + 1 < n->values->count) {
+          w2 += snprintf(b2 + w2, sizeof(b2) - w2, ",");
+        }
+      } else if (i < 9) { // Third line: indices 6, 7, 8
+        w3 += snprintf(b3 + w3, sizeof(b3) - w3, "%hhu", n->values->data[i]);
+        if (i < 8 && i + 1 < n->values->count) {
+          w3 += snprintf(b3 + w3, sizeof(b3) - w3, ",");
+        }
+      }
+    }
+
+    if (w1 > 0) {
+      Vector2 r1_pos = text_calculate_position(&r1, font, fontSize, b1);
+      DrawTextEx(font, b1, r1_pos, fontSize, fontSize * .1f, RAYWHITE);
+    }
+    if (w2 > 0) {
+      Vector2 r2_pos = text_calculate_position(&r2, font, fontSize, b2);
+      DrawTextEx(font, b2, r2_pos, fontSize, fontSize * .1f, RAYWHITE);
+    }
+    if (w3 > 0) {
+      Vector2 r3_pos = text_calculate_position(&r3, font, fontSize, b3);
+      DrawTextEx(font, b3, r3_pos, fontSize, fontSize * .1f, RAYWHITE);
+    }
+
     DrawRectangleLinesEx(r1, 1.0f, ORANGE);
     DrawRectangleLinesEx(r2, 1.0f, PURPLE);
     DrawRectangleLinesEx(r3, 1.0f, PINK);
@@ -554,4 +571,13 @@ arr_uint8_t *arr_uint8_t_create(size_t initial_capacity) {
   }
 
   return arr;
+}
+
+Vector2 text_calculate_position(const Rectangle *rect, Font font,
+                                float fontSize, char *buf) {
+  Vector2 textSize = MeasureTextEx(font, buf, fontSize, fontSize * .1f);
+  Vector2 textPos = (Vector2){
+      rect->x + Lerp(0.0f, rect->width - textSize.x, ((float)1) * 0.5f),
+      rect->y + Lerp(0.0f, rect->height - textSize.y, ((float)1) * 0.5f)};
+  return textPos;
 }
