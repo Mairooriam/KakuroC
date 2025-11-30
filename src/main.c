@@ -37,6 +37,7 @@ int main(void) {
   ctx.margin = 5;
   ctx.size = 50;
   ctx.grid = grid;
+
   arr_nodes_serialize("test.txt", grid);
   // TODO: fix leak
   arr_Nodes *tmparr = arr_nodes_create(grid->x_dimension, grid->y_dimension);

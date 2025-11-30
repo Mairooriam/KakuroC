@@ -1,6 +1,7 @@
 #pragma once
 #include <raylib.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 // Select map size ( 180 degree rotational symmetry about the point at the
 // center of the white cells) choose player to place black squares. if there is
@@ -86,11 +87,13 @@ size_t arr_uint8_t_to_string(char *buf, size_t bufsize, const arr_uint8_t *arr);
 int arr_uint8_t_serialize(const char *path, const arr_uint8_t *nodes);
 int arr_uint8_t_deserialize(const char *path, arr_uint8_t *nodes);
 arr_uint8_t *arr_uint8_t_create(size_t initial_capacity);
+size_t arr_uint8_t_sum(const arr_uint8_t *arr);
 
 typedef struct {
   Vec2u8 pos; // pos of cell
   TileType type;
   arr_uint8_t *values; // value of cell
+  arr_uint8_t **clue_possible_values;
   int id;
   // TODO: make sums into vec2u8?
   // TODO: make data union and if it is type clue it has sums and if empty it
@@ -159,3 +162,5 @@ void input_state(KakuroContext *ctx);
 void input_mouse(KakuroContext *ctx);
 
 void app_update(KakuroContext *ctx);
+
+void print_binary_stdout(unsigned int number);

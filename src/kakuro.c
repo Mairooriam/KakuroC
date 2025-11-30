@@ -249,6 +249,9 @@ void render_grid(const arr_Nodes *arr, int margin, int size) {
     }
   }
 }
+
+// TODO: implement this for text
+// raylib [text] example - rectangle bounds
 void render_node(const Node *n, int margin, int size) {
   // TODO: change units into floats?
   int screen_x = (int)n->pos.x * (size + margin);
@@ -494,6 +497,7 @@ void clue_set_all_empty_sums(arr_Nodes *arr) {
           }
           printf("cuyrrent x:%zu y:%zu\n", x, y_temp);
         }
+        node->y_empty_count = y_count;
 
         x_temp = x;
         while (x_temp++ < arr->x_dimension - 1) {
@@ -508,6 +512,7 @@ void clue_set_all_empty_sums(arr_Nodes *arr) {
           }
           printf("cuyrrent x:%zu y:%zu\n", x_temp, y);
         }
+        node->x_empty_count = x_count;
       }
     }
   }
@@ -571,6 +576,14 @@ arr_uint8_t *arr_uint8_t_create(size_t initial_capacity) {
   }
 
   return arr;
+}
+
+size_t arr_uint8_t_sum(const arr_uint8_t *arr) {
+  size_t sum = 0;
+  for (size_t i = 0; i < arr->count; i++) {
+    sum += arr->data[i];
+  }
+  return sum;
 }
 
 Vector2 text_calculate_position(const Rectangle *rect, Font font,
@@ -732,6 +745,10 @@ void input_keys(KakuroContext *ctx) {
     arr_uint8_t_to_string(buf, 1025, node->values);
     printf("(%hhu,%hhu)values: %s", cursor->pos.x, cursor->pos.y, buf);
   }
+
+  if (IsKeyReleased(KEY_E)) {
+    clue_calculate_possible_values(ctx->grid, cursor->pos.x, cursor->pos.y);
+  }
 }
 
 void input_state(KakuroContext *ctx) {
@@ -774,4 +791,90 @@ void input_mouse(KakuroContext *ctx) {
 void app_update(KakuroContext *ctx) {
   (void)ctx;
   printf("UPDATE NOT IMPLEMENTED");
+}
+void clue_calculate_possible_values(arr_Nodes *arr, size_t x, size_t y) {
+  // TODO: fix leaks in this
+  Node *n = arr_nodes_get(arr, x, y);
+  if (n->type != TILETYPE_CLUE) {
+    printf("Cannot calculate values for node that is not clue\n");
+    return;
+  }
+
+  size_t x_count = n->x_empty_count;
+  size_t y_count = n->y_empty_count;
+  uint8_t nums[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+  size_t subsets_capacity = 128;
+
+  // X subsets
+  arr_uint8_t **x_subsets = malloc(sizeof(arr_uint8_t *) * subsets_capacity);
+  size_t x_subsets_size = 0;
+  size_t x_temp_sum = 0;
+  for (int mask = 0; mask < (1 << 9); mask++) {
+    // if mask has N_empty_count it is potential combination for the sum
+    if (__builtin_popcount(mask) == (int)x_count) {
+      arr_uint8_t *x_subset = arr_uint8_t_create(x_count);
+      for (int i = 0; i < 9; i++) {
+        if (mask & (1 << i)) { // only select i if its in the mask
+          arr_uint8_t_add(x_subset, nums[i]);
+          x_temp_sum += nums[i];
+        }
+      }
+      if (x_temp_sum == n->sum_x) {
+        x_subsets[x_subsets_size] = x_subset;
+        x_subsets_size++;
+      }
+      x_temp_sum = 0;
+
+    }
+  }
+
+  // Z subsets
+  arr_uint8_t **y_subsets = malloc(sizeof(arr_uint8_t *) * subsets_capacity);
+  size_t y_subsets_size = 0;
+  size_t y_temp_sum = 0;
+  for (int mask = 0; mask < (1 << 9); mask++) {
+    // if mask has N_empty_count it is potential combination for the sum
+    if (__builtin_popcount(mask) == (int)y_count) {
+      arr_uint8_t *y_subset = arr_uint8_t_create(y_count);
+      for (int i = 0; i < 9; i++) {
+        if (mask & (1 << i)) { // only select i if its in the mask
+          arr_uint8_t_add(y_subset, nums[i]);
+          y_temp_sum += nums[i];
+        }
+      }
+      if (y_temp_sum == n->sum_y) {
+        y_subsets[y_subsets_size] = y_subset;
+        y_subsets_size++;
+           }
+              y_temp_sum = 0;
+
+    }
+  }
+
+  printf("PRINTING X subsets\n");
+  for (size_t i = 0; i < x_subsets_size; i++) {
+    arr_uint8_t *subset = x_subsets[i];
+    size_t bufSize = 1024;
+    char buf[bufSize];
+    arr_uint8_t_to_string(buf, bufSize, subset);
+    size_t sum = arr_uint8_t_sum(subset);
+    printf("[%zu] - Subset: %s = %zu\n", i, buf, sum);
+  }
+
+  printf("PRINTING Z subsets\n");
+  for (size_t i = 0; i < y_subsets_size; i++) {
+    arr_uint8_t *subset = y_subsets[i];
+    size_t bufSize = 1024;
+    char buf[bufSize];
+    arr_uint8_t_to_string(buf, bufSize, subset);
+    size_t sum = arr_uint8_t_sum(subset);
+    printf("[%zu] - Subset: %s = %zu\n", i, buf, sum);
+  }
+}
+
+void print_binary_stdout(unsigned int number) {
+  if (number >> 1) {
+    print_binary_stdout(number >> 1);
+  }
+  putc((number & 1) ? '1' : '0', stdout);
 }
