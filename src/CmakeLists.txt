@@ -43,6 +43,8 @@ endif()
 set(SOURCES
     main.c
     kakuro.c
+    ht.c
+
 
 )
 

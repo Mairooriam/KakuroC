@@ -290,17 +290,17 @@ void render_node(const Node *n, int margin, int size) {
 
     for (size_t i = 0; i < n->values->count; i++) {
       if (i < 3) { // First line: indices 0, 1, 2
-        w1 += snprintf(b1 + w1, sizeof(b1) - w1, "%hhu", n->values->data[i]);
+        w1 += snprintf(b1 + w1, sizeof(b1) - w1, "%hhu", n->values->items[i]);
         if (i < 2 && i + 1 < n->values->count) {
           w1 += snprintf(b1 + w1, sizeof(b1) - w1, ",");
         }
       } else if (i < 6) { // Second line: indices 3, 4, 5
-        w2 += snprintf(b2 + w2, sizeof(b2) - w2, "%hhu", n->values->data[i]);
+        w2 += snprintf(b2 + w2, sizeof(b2) - w2, "%hhu", n->values->items[i]);
         if (i < 5 && i + 1 < n->values->count) {
           w2 += snprintf(b2 + w2, sizeof(b2) - w2, ",");
         }
       } else if (i < 9) { // Third line: indices 6, 7, 8
-        w3 += snprintf(b3 + w3, sizeof(b3) - w3, "%hhu", n->values->data[i]);
+        w3 += snprintf(b3 + w3, sizeof(b3) - w3, "%hhu", n->values->items[i]);
         if (i < 8 && i + 1 < n->values->count) {
           w3 += snprintf(b3 + w3, sizeof(b3) - w3, ",");
         }
@@ -521,16 +521,16 @@ void clue_set_all_empty_sums(arr_Nodes *arr) {
 bool arr_uint8_t_add(arr_uint8_t *arr, uint8_t val) {
   if (arr->count >= arr->capacity) {
     size_t newSize = arr->capacity * 2;
-    uint8_t *temp = realloc(arr->data, sizeof(uint8_t) * newSize);
+    uint8_t *temp = realloc(arr->items, sizeof(uint8_t) * newSize);
 
     if (!temp) {
       return false;
     }
 
     arr->capacity = newSize;
-    arr->data = temp;
+    arr->items = temp;
   }
-  arr->data[arr->count] = val;
+  arr->items[arr->count] = val;
   arr->count++;
   return true;
 }
@@ -539,7 +539,8 @@ size_t arr_uint8_t_to_string(char *buf, size_t bufsize,
   size_t written = 0;
   written += snprintf(buf + written, bufsize - written, "[");
   for (size_t i = 0; i < arr->count; i++) {
-    written += snprintf(buf + written, bufsize - written, "%hhu", arr->data[i]);
+    written +=
+        snprintf(buf + written, bufsize - written, "%hhu", arr->items[i]);
     if (i < arr->count - 1) {
       written += snprintf(buf + written, bufsize - written, ",");
     }
@@ -567,9 +568,9 @@ arr_uint8_t *arr_uint8_t_create(size_t initial_capacity) {
 
   arr->count = 0;
   arr->capacity = initial_capacity;
-  arr->data = malloc(sizeof(uint8_t) * initial_capacity);
+  arr->items = malloc(sizeof(uint8_t) * initial_capacity);
 
-  if (!arr->data) {
+  if (!arr->items) {
     printf("Failed to allocate data array\n");
     free(arr);
     return NULL;
@@ -581,7 +582,7 @@ arr_uint8_t *arr_uint8_t_create(size_t initial_capacity) {
 size_t arr_uint8_t_sum(const arr_uint8_t *arr) {
   size_t sum = 0;
   for (size_t i = 0; i < arr->count; i++) {
-    sum += arr->data[i];
+    sum += arr->items[i];
   }
   return sum;
 }
@@ -792,6 +793,7 @@ void app_update(KakuroContext *ctx) {
   (void)ctx;
   printf("UPDATE NOT IMPLEMENTED");
 }
+
 void clue_calculate_possible_values(arr_Nodes *arr, size_t x, size_t y) {
   // TODO: fix leaks in this
   Node *n = arr_nodes_get(arr, x, y);
@@ -824,7 +826,6 @@ void clue_calculate_possible_values(arr_Nodes *arr, size_t x, size_t y) {
         x_subsets_size++;
       }
       x_temp_sum = 0;
-
     }
   }
 
@@ -845,9 +846,8 @@ void clue_calculate_possible_values(arr_Nodes *arr, size_t x, size_t y) {
       if (y_temp_sum == n->sum_y) {
         y_subsets[y_subsets_size] = y_subset;
         y_subsets_size++;
-           }
-              y_temp_sum = 0;
-
+      }
+      y_temp_sum = 0;
     }
   }
 

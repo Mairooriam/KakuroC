@@ -78,7 +78,7 @@ typedef enum {
 } AppState;
 
 typedef struct {
-  uint8_t *data;
+  uint8_t *items;
   size_t capacity;
   size_t count;
 } arr_uint8_t;
