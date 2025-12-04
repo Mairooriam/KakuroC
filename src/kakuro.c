@@ -1,4 +1,6 @@
 #include "kakuro.h"
+
+#include "ht.h"
 #include "raymath.h" // Required for: Lerp()
 #include <assert.h>
 #include <raylib.h>
@@ -6,6 +8,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define NOB_IMPLEMENTATION
+#include "nob.h"
 Node *node_create(Vec2u8 pos, TileType type, uint8_t sum_x, uint8_t sum_y) {
   Node *node = malloc(sizeof(Node));
   if (!node)
@@ -586,7 +591,21 @@ size_t arr_uint8_t_sum(const arr_uint8_t *arr) {
   }
   return sum;
 }
+arr_uint8_t *
+arr_uint8_t_compare_and_return_if_both_not_0(const arr_uint8_t *arr1,
+                                             const arr_uint8_t *arr2) {
+  if (arr1->count != arr2->count) {
+    assert(0 && "only supports same size arrays :))) TODO: uppdate this func");
+  }
 
+  arr_uint8_t *t_arr = arr_uint8_t_create(10);
+  for (size_t i = 0; i < arr1->count; i++) {
+    if ((arr1->items[i] != 0) && (arr2->items[i] != 0)) {
+      nob_da_append(t_arr, i + 1); // +1 since index 0 = 1
+    }
+  }
+  return t_arr;
+}
 Vector2 text_calculate_position(const Rectangle *rect, Font font,
                                 float fontSize, char *buf) {
   Vector2 textSize = MeasureTextEx(font, buf, fontSize, fontSize * .1f);
@@ -748,7 +767,40 @@ void input_keys(KakuroContext *ctx) {
   }
 
   if (IsKeyReleased(KEY_E)) {
-    clue_calculate_possible_values(ctx->grid, cursor->pos.x, cursor->pos.y);
+    // clue_calculate_possible_values(ctx->grid, cursor->pos.x, cursor->pos.y);
+    if (ctx->combination_map->count == 0) {
+      cache_possible_sums(ctx->combination_map);
+    } else {
+      for (size_t i = 0; i < ctx->combination_map->capacity; i++) {
+        uint16_t key = ctx->combination_map->entries[i].key;
+        if (key != 0) {
+          arr_uint8_t_2d *val =
+              (arr_uint8_t_2d *)ctx->combination_map->entries[i].value;
+          uint8_t count = key >> 8;
+          uint8_t sum = key & 0xFF;
+          printf("Key: %hu (Count: %hhu, Sum: %hhu), Combinations: %zu\n", key,
+                 count, sum, val->count);
+          nob_da_foreach(arr_uint8_t *, subset, val) {
+            printf("  Combination: ");
+            for (size_t k = 0; k < (*subset)->count; k++) {
+              printf("%hhu ", (*subset)->items[k]);
+            }
+            printf("\n");
+          }
+        }
+      }
+      nob_log(NOB_INFO, "Already calculated sum cache just printing cache!");
+    }
+  }
+
+  if (IsKeyDown(KEY_R)) {
+  } else if (IsKeyReleased(KEY_R)) {
+    get_possible_sums_from_cache_for_selected(ctx->combination_map, ctx);
+  }
+
+  if (IsKeyDown(KEY_W)) {
+  } else if (IsKeyReleased(KEY_W)) {
+    shoot_ray_to_mouse_from_cursor_tile(ctx);
   }
 }
 
@@ -877,4 +929,156 @@ void print_binary_stdout(unsigned int number) {
     print_binary_stdout(number >> 1);
   }
   putc((number & 1) ? '1' : '0', stdout);
+}
+
+void cache_possible_sums(ht *combination_map) {
+  if (!combination_map) {
+    nob_log(NOB_ERROR, "Map supplied is NULL");
+  }
+
+  // numbers to go trough
+  uint8_t nums[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+
+  // 2 is lowest possible count for sums
+  for (size_t count = 2; count <= 9; count++) {
+
+    for (int mask = 0; mask < (1 << 9); mask++) {
+      // if mask has N_empty_count it is potential combination for the sum
+      if (__builtin_popcount(mask) == (int)count) {
+        arr_uint8_t *subset = arr_uint8_t_create(count);
+        size_t sum = 0;
+        for (int i = 0; i < 9; i++) {
+          if (mask & (1 << i)) { // only select i if its in the mask
+            arr_uint8_t_add(subset, nums[i]);
+            sum += nums[i];
+          } else {
+            arr_uint8_t_add(subset, 0);
+          }
+        }
+        // hash map key = count + sum
+        // 9 hashmaps for each count?
+        // something else?
+        // one big map with count + sum key?
+
+        // Composite key: count in high 8 bits, sum in low 8 bits
+        uint16_t key = ((uint16_t)count << 8) | sum;
+
+        // Check if (count, sum) already exists
+        arr_uint8_t_2d *existing =
+            (arr_uint8_t_2d *)ht_get(combination_map, key);
+        if (!existing) {
+          // New (count, sum): create entry
+          existing = malloc(sizeof(arr_uint8_t_2d));
+          existing->items = malloc(sizeof(arr_uint8_t *) * 16);
+          existing->count = 0;
+          existing->capacity = 16;
+          ht_set(combination_map, key, (void *)existing);
+        }
+        nob_da_append(existing, subset);
+      }
+    }
+  }
+
+  printf("Combination Map Contents:\n");
+  for (size_t i = 0; i < combination_map->capacity; i++) {
+    uint16_t key = combination_map->entries[i].key;
+    if (key != 0) {
+      arr_uint8_t_2d *val = (arr_uint8_t_2d *)combination_map->entries[i].value;
+      uint8_t count = key >> 8;
+      uint8_t sum = key & 0xFF;
+      printf("Key: %hu (Count: %hhu, Sum: %hhu), Combinations: %zu\n", key,
+             count, sum, val->count);
+      // Use nob_da_foreach instead of manual loop
+      nob_da_foreach(arr_uint8_t *, subset, val) {
+        printf("  Combination: ");
+        for (size_t k = 0; k < (*subset)->count; k++) {
+          printf("%hhu ", (*subset)->items[k]);
+        }
+        printf("\n");
+      }
+    }
+  }
+}
+Node *kak_get_node_under_cursor_tile(const arr_Nodes *arr, const Node *cursor) {
+  return arr_nodes_get(arr, cursor->pos.x, cursor->pos.y);
+}
+void get_possible_sums_from_cache_for_selected(ht *combination_map,
+                                               KakuroContext *ctx) {
+
+  Node *n = kak_get_node_under_cursor_tile(ctx->grid, ctx->Cursor_tile);
+
+  // GETTING AND PRINTING COMBINATIONS
+  //
+  // FOR X
+  uint8_t count_x = n->x_empty_count;
+  uint8_t sum_x = n->sum_x;
+  uint16_t key_x = ((uint16_t)count_x << 8) | sum_x;
+  arr_uint8_t_2d *combs_x = (arr_uint8_t_2d *)ht_get(combination_map, key_x);
+  if (combs_x == NULL) {
+    nob_log(NOB_WARNING,
+            "Value for count_x: %hhu, sum_x: %hhu doens't exist in the cache",
+            count_x, sum_x);
+    return;
+  }
+  printf("Key: %hu (Count: %hhu, Sum: %hhu), Combinations: %zu\n", key_x,
+         count_x, sum_x, combs_x->count);
+  nob_da_foreach(arr_uint8_t *, subset, combs_x) {
+    nob_da_foreach(uint8_t, it, *subset) { printf("%hhu ", (*it)); }
+    printf("\n");
+  }
+
+  // FOR Y
+  uint8_t count_y = n->y_empty_count;
+  uint8_t sum_y = n->sum_y;
+
+  uint16_t key_y = ((uint16_t)count_y << 8) | sum_y;
+  arr_uint8_t_2d *combs_y = (arr_uint8_t_2d *)ht_get(combination_map, key_y);
+  if (combs_y == NULL) {
+    nob_log(NOB_WARNING,
+            "Value for count_y: %hhu, sum_y: %hhu doens't exist in the cache",
+            count_y, sum_y);
+    return;
+  }
+  printf("Key: %hu (Count: %hhu, Sum: %hhu), Combinations: %zu\n", key_y,
+         count_y, sum_y, combs_y->count);
+  // Use nob_da_foreach instead of manual loop
+  nob_da_foreach(arr_uint8_t *, subset, combs_y) {
+    nob_da_foreach(uint8_t, it, *subset) { printf("%hhu ", (*it)); }
+    printf("\n");
+  }
+
+  // TODO: make array comparing functions
+  //  1 2 3 4 5 6 7 8 9
+  //  0 0 3 4 5 6 7 8 9
+  //  ^ if number is 0 add to map to numbers to not include
+  arr_uint8_t *unique = arr_uint8_t_create(9);
+
+  // uint8_t t_arr1[9] = {1, 2, 3, 4, 0, 0, 0, 0, 0};
+  // uint8_t t_arr2[9] = {0, 0, 3, 0, 5, 6, 7, 8, 9};
+
+  // arr_uint8_t *t_arr = arr_uint8_t_create(10);
+  // for (size_t i = 0; i < 9; i++) {
+  //   if ((t_arr1[i] != 0) && (t_arr2[i] != 0)) {
+  //     nob_da_append(t_arr, i + 1); // +1 since index 0 = 1
+  //   }
+  // }
+  arr_uint8_t *t_arr = arr_uint8_t_create(10);
+  for (size_t i = 0; i < combs_y->count; i++) {
+    for (size_t j = 0; j < combs_x->count; j++) {
+      // if combs_y 1st array
+      // TODO: this leaks :) compare and return returns new array
+      arr_uint8_t *temp_arr = arr_uint8_t_compare_and_return_if_both_not_0(
+          combs_y->items[i], combs_x->items[j]);
+
+      char buf[1024];
+      arr_uint8_t_to_string(buf, 1024, temp_arr);
+      printf("Indexes with 0 %s\n", buf);
+    }
+  }
+  char buf[1024];
+  arr_uint8_t_to_string(buf, 1024, t_arr);
+  printf("Indexes with 0 %s\n", buf);
+}
+void shoot_ray_to_mouse_from_cursor_tile(KakuroContext *ctx) {
+  // TODO: do tihs haha ihihih
 }

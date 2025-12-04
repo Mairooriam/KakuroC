@@ -1,3 +1,4 @@
+#include "ht.h"
 #include "kakuro.h"
 #include "raylib.h"
 #include <math.h>
@@ -11,6 +12,7 @@
 int main(void) {
   // Initialize the window
   InitWindow(800, 600, "Raylib Hello World");
+  SetTargetFPS(60);
 
   // Grid INIT
   arr_Nodes *grid = arr_nodes_create(11, 11);
@@ -37,6 +39,7 @@ int main(void) {
   ctx.margin = 5;
   ctx.size = 50;
   ctx.grid = grid;
+  ctx.combination_map = ht_create();
 
   arr_nodes_serialize("test.txt", grid);
   // TODO: fix leak
@@ -47,7 +50,6 @@ int main(void) {
 
     // END OF INPUTS
     input_process(&ctx);
-
     // TODO: if need
     //  app_update(ctx);
 

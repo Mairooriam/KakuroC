@@ -1,4 +1,5 @@
 #pragma once
+#include "ht.h"
 #include <raylib.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -89,6 +90,15 @@ int arr_uint8_t_deserialize(const char *path, arr_uint8_t *nodes);
 arr_uint8_t *arr_uint8_t_create(size_t initial_capacity);
 size_t arr_uint8_t_sum(const arr_uint8_t *arr);
 
+arr_uint8_t *
+arr_uint8_t_compare_and_return_if_both_not_0(const arr_uint8_t *arr1,
+                                             const arr_uint8_t *arr2);
+typedef struct {
+  arr_uint8_t **items;
+  size_t count;
+  size_t capacity;
+} arr_uint8_t_2d;
+
 typedef struct {
   Vec2u8 pos; // pos of cell
   TileType type;
@@ -139,6 +149,8 @@ void clue_calculate_possible_values(arr_Nodes *arr, size_t x, size_t y);
 void clue_set_all_empty_sums(
     arr_Nodes *arr); // TODO: implement hashset and use hash of the clue nopdes
                      // instead of iterating trough all
+void cache_possible_sums(ht *combination_map);
+Node *kak_get_node_under_cursor_tile(const arr_Nodes *arr, const Node *cursor);
 
 Vector2 text_calculate_position(const Rectangle *rect, Font font,
                                 float fontsize, char *buf);
@@ -152,6 +164,8 @@ typedef struct {
   Camera2D *camera;
   int margin;
   int size;
+  ht *combination_map;
+
 } KakuroContext;
 
 // INPUT
@@ -162,5 +176,8 @@ void input_state(KakuroContext *ctx);
 void input_mouse(KakuroContext *ctx);
 
 void app_update(KakuroContext *ctx);
-
+void get_possible_sums_from_cache_for_selected(ht *combination_map,
+                                               KakuroContext *ctx);
 void print_binary_stdout(unsigned int number);
+
+void shoot_ray_to_mouse_from_cursor_tile(KakuroContext *ctx);
