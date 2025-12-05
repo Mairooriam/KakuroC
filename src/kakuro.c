@@ -281,7 +281,7 @@ void render_node(const Node *n, int margin, int size) {
     // TODO: do this some other way
     Color color = (Color){200, 25, 25, 100};
     if (n->type == TILETYPE_EMPTY_VALID) {
-      color = (Color){0, 200, 0, 0};
+      color = (Color){0, 200, 0, 100};
     }
     Rectangle r1 = (Rectangle){rect.x, rect.y, (float)size, (float)size / 3};
     Rectangle r2 = (Rectangle){rect.x, rect.y + (float)size / 3, (float)size,
@@ -834,6 +834,10 @@ void input_keys(KakuroContext *ctx) {
   } else if (IsKeyReleased(KEY_W)) {
     printf("Populating possible");
     populate_possible_sums_for_empty_tiles(ctx->combination_map, ctx);
+    int locked = kak_lock_correct_tiles(ctx->grid);
+    if (locked > 0) {
+      printf("Found one valid tile. Updating possible sums\n");
+    }
   }
 }
 
@@ -1035,6 +1039,25 @@ void cache_possible_sums(ht *combination_map) {
 Node *kak_get_node_under_cursor_tile(const arr_Nodes *arr, const Node *cursor) {
   return arr_nodes_get(arr, cursor->pos.x, cursor->pos.y);
 }
+int kak_lock_correct_tiles(arr_Nodes *nodes) {
+  // TODO: cache of empty nodes
+  int i = 0;
+  nob_da_foreach(Node *, it, nodes) {
+    if ((*it)->values->count == 1) {
+      (*it)->type = TILETYPE_EMPTY_VALID;
+      i++;
+    }
+  }
+  return i;
+}
+
+static void
+_kak_update_possible_values_according_placed_values(arr_Nodes *nodes, Node *n) {
+
+  // Collect all locked values from
+}
+
+void kak_update_possible_values_according_placed_values(arr_Nodes *nodes) {}
 
 static arr_uint8_t_2d *
 get_possible_sums_from_cache_for_tile(ht *combination_map, Node *n) {
@@ -1050,13 +1073,13 @@ get_possible_sums_from_cache_for_tile(ht *combination_map, Node *n) {
     nob_log(NOB_WARNING,
             "Value for count_x: %hhu, sum_x: %hhu doens't exist in the cache",
             count_x, sum_x);
-    return NULL;
-  }
-  printf("Key: %hu (Count: %hhu, Sum: %hhu), Combinations: %zu\n", key_x,
-         count_x, sum_x, combs_x->count);
-  nob_da_foreach(arr_uint8_t *, subset, combs_x) {
-    nob_da_foreach(uint8_t, it, *subset) { printf("%hhu ", (*it)); }
-    printf("\n");
+  } else {
+    printf("Key: %hu (Count: %hhu, Sum: %hhu), Combinations: %zu\n", key_x,
+           count_x, sum_x, combs_x->count);
+    nob_da_foreach(arr_uint8_t *, subset, combs_x) {
+      nob_da_foreach(uint8_t, it, *subset) { printf("%hhu ", (*it)); }
+      printf("\n");
+    }
   }
 
   // FOR Y
@@ -1069,14 +1092,14 @@ get_possible_sums_from_cache_for_tile(ht *combination_map, Node *n) {
     nob_log(NOB_WARNING,
             "Value for count_y: %hhu, sum_y: %hhu doens't exist in the cache",
             count_y, sum_y);
-    return NULL;
-  }
-  printf("Key: %hu (Count: %hhu, Sum: %hhu), Combinations: %zu\n", key_y,
-         count_y, sum_y, combs_y->count);
-  // Use nob_da_foreach instead of manual loop
-  nob_da_foreach(arr_uint8_t *, subset, combs_y) {
-    nob_da_foreach(uint8_t, it, *subset) { printf("%hhu ", (*it)); }
-    printf("\n");
+  } else {
+    printf("Key: %hu (Count: %hhu, Sum: %hhu), Combinations: %zu\n", key_y,
+           count_y, sum_y, combs_y->count);
+    // Use nob_da_foreach instead of manual loop
+    nob_da_foreach(arr_uint8_t *, subset, combs_y) {
+      nob_da_foreach(uint8_t, it, *subset) { printf("%hhu ", (*it)); }
+      printf("\n");
+    }
   }
 
   // TODO: make array comparing functions
@@ -1086,19 +1109,31 @@ get_possible_sums_from_cache_for_tile(ht *combination_map, Node *n) {
 
   // If arr size not 1 -> tile is ambigious -> if the 1 arr left size != 1 it is
   // ambigious aswell
+  // TODO: remove this malloc stuff?
   arr_uint8_t_2d *arr = malloc(sizeof(arr_uint8_t_2d));
   arr->capacity = 9;
   arr->count = 0;
   arr->items = malloc(sizeof(arr_uint8_t *) * arr->capacity);
-  for (size_t i = 0; i < combs_y->count; i++) {
-    for (size_t j = 0; j < combs_x->count; j++) {
-      // if combs_y 1st array
-      // TODO: this leaks :) compare and return returns new array
-      arr_uint8_t *temp_arr = arr_uint8_t_compare_and_return_if_both_not_0(
-          combs_y->items[i], combs_x->items[j]);
 
-      nob_da_append(arr, temp_arr);
+  // If either X or Y combs empty ignore loop.
+
+  if (combs_y != NULL && combs_x != NULL) {
+    for (size_t i = 0; i < combs_y->count; i++) {
+      for (size_t j = 0; j < combs_x->count; j++) {
+        // if combs_y 1st array
+        // TODO: this leaks :) compare and return returns new array
+        arr_uint8_t *temp_arr = arr_uint8_t_compare_and_return_if_both_not_0(
+            combs_y->items[i], combs_x->items[j]);
+
+        nob_da_append(arr, temp_arr);
+      }
     }
+    // TODO: is this shit?
+  } else if (combs_x == NULL && combs_y != NULL) {
+    nob_log(NOB_INFO, "combs_x null. returning combs_y");
+    return combs_y;
+  } else if (combs_x != NULL && combs_y == NULL) {
+    return combs_x;
   }
   size_t bufsize = 1024 * 8;
   char buf[bufsize];
@@ -1129,9 +1164,11 @@ void populate_possible_sums_for_empty_tiles(ht *combination_map,
     }
     if (arr != NULL) {
       arr_uint8_t *uniquearr = arr_uint8_t_create(16);
-      nob_da_foreach(arr_uint8_t *, it2, arr){nob_da_foreach(
-          uint8_t, it3, (*it2)){if (!arr_uint8_t_contains(uniquearr, (*it3))){
-          nob_da_append(uniquearr, (*it3));
+      nob_da_foreach(arr_uint8_t *, it2, arr){
+          nob_da_foreach(uint8_t, it3, (*it2)){if ((*it3) == 0){continue;
+    }
+    if (!arr_uint8_t_contains(uniquearr, (*it3))) {
+      nob_da_append(uniquearr, (*it3));
     }
   }
 }

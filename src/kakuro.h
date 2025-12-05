@@ -102,8 +102,12 @@ typedef struct {
 } arr_uint8_t_2d;
 size_t arr_uint8_t_2d_to_string(char *buf, size_t bufsize, arr_uint8_t_2d *arr);
 
-typedef struct {
-  Vec2u8 pos; // pos of cell
+// TODO: make union for clue and empty node? to separate fields a bit
+typedef struct Node Node;
+typedef struct Node {
+  Vec2u8 pos;   // pos of cell
+  Node *clue_x; // TODO: separate empty and clue fields
+  Node *clue_y; // TODO: separate empty and clue fields
   TileType type;
   arr_uint8_t *values; // value of cell
   arr_uint8_t **clue_possible_values;
@@ -154,6 +158,11 @@ void clue_set_all_empty_sums(
                      // instead of iterating trough all
 void cache_possible_sums(ht *combination_map);
 Node *kak_get_node_under_cursor_tile(const arr_Nodes *arr, const Node *cursor);
+
+// returns count of locked tiles
+int kak_lock_correct_tiles(arr_Nodes *nodes);
+
+void kak_update_possible_values_according_placed_values(arr_Nodes *nodes);
 
 Vector2 text_calculate_position(const Rectangle *rect, Font font,
                                 float fontsize, char *buf);
