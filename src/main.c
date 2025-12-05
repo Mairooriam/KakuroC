@@ -45,6 +45,21 @@ int main(void) {
   // TODO: fix leak
   arr_Nodes *tmparr = arr_nodes_create(grid->x_dimension, grid->y_dimension);
   arr_nodes_deserialize("test.txt", tmparr);
+
+  // TODO: leakinGg memory not freeing old nodes
+  // Load save
+  ctx.grid = arr_nodes_create(ctx.grid->x_dimension, ctx.grid->y_dimension);
+  arr_nodes_deserialize("savefile.txt", ctx.grid);
+
+  // Calculate count sum combinations
+  cache_possible_sums(ctx.combination_map);
+
+  // check clue tiles
+  clue_tile_45_checker(ctx.grid);
+
+  // set empty tile sums according to clues
+  clue_set_all_empty_sums(ctx.grid);
+
   while (!WindowShouldClose()) {
     //    float delta_time = GetFrameTime(); // Get time since last frame
 

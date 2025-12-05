@@ -275,15 +275,19 @@ void render_node(const Node *n, int margin, int size) {
     DrawRectangleRec(rect, (Color){0, 0, 0, 255});
     DrawLine(screen_x, screen_y, screen_x + size, screen_y + size, BLACK);
   } break;
-  case TILETYPE_EMPTY: {
-    int r = n->pos.y * 50;
-    int g = n->pos.x * 50;
+  case TILETYPE_EMPTY:
+  case TILETYPE_EMPTY_VALID: {
+    // TODO: do this some other way
+    Color color = (Color){200, 25, 25, 100};
+    if (n->type == TILETYPE_EMPTY_VALID) {
+      color = (Color){0, 200, 0, 0};
+    }
     Rectangle r1 = (Rectangle){rect.x, rect.y, (float)size, (float)size / 3};
     Rectangle r2 = (Rectangle){rect.x, rect.y + (float)size / 3, (float)size,
                                (float)size / 3};
     Rectangle r3 = (Rectangle){rect.x, rect.y + (float)size / 3 * 2,
                                (float)size, (float)size / 3};
-    DrawRectangleRec(rect, (Color){r, g, 0, 255});
+    DrawRectangleRec(rect, color);
     // R   G  B
     // TODO: have cache for each node for the string???
     //
@@ -606,6 +610,21 @@ arr_uint8_t_compare_and_return_if_both_not_0(const arr_uint8_t *arr1,
   }
   return t_arr;
 }
+size_t arr_uint8_t_2d_to_string(char *buf, size_t bufsize,
+                                arr_uint8_t_2d *arr) {
+  size_t written = 0;
+  written += snprintf(buf + written, bufsize - written, "[");
+  for (size_t i = 0; i < arr->count; i++) {
+    written +=
+        arr_uint8_t_to_string(buf + written, bufsize - written, arr->items[i]);
+    if (i < arr->count - 1) {
+      written += snprintf(buf + written, bufsize - written, ",");
+    }
+  }
+  written += snprintf(buf + written, bufsize - written, "]");
+  return written;
+}
+
 Vector2 text_calculate_position(const Rectangle *rect, Font font,
                                 float fontSize, char *buf) {
   Vector2 textSize = MeasureTextEx(font, buf, fontSize, fontSize * .1f);
@@ -1062,7 +1081,13 @@ void get_possible_sums_from_cache_for_selected(ht *combination_map,
   //     nob_da_append(t_arr, i + 1); // +1 since index 0 = 1
   //   }
   // }
-  arr_uint8_t *t_arr = arr_uint8_t_create(10);
+  //
+  //
+  // If arr size not 1 -> tile is ambigious
+  arr_uint8_t_2d *arr = malloc(sizeof(arr_uint8_t_2d));
+  arr->capacity = 9;
+  arr->count = 0;
+  arr->items = malloc(sizeof(arr_uint8_t *) * arr->capacity);
   for (size_t i = 0; i < combs_y->count; i++) {
     for (size_t j = 0; j < combs_x->count; j++) {
       // if combs_y 1st array
@@ -1070,13 +1095,12 @@ void get_possible_sums_from_cache_for_selected(ht *combination_map,
       arr_uint8_t *temp_arr = arr_uint8_t_compare_and_return_if_both_not_0(
           combs_y->items[i], combs_x->items[j]);
 
-      char buf[1024];
-      arr_uint8_t_to_string(buf, 1024, temp_arr);
-      printf("Indexes with 0 %s\n", buf);
+      nob_da_append(arr, temp_arr);
     }
   }
-  char buf[1024];
-  arr_uint8_t_to_string(buf, 1024, t_arr);
+  size_t bufsize = 1024 * 8;
+  char buf[bufsize];
+  arr_uint8_t_2d_to_string(buf, bufsize, arr);
   printf("Indexes with 0 %s\n", buf);
 }
 void shoot_ray_to_mouse_from_cursor_tile(KakuroContext *ctx) {

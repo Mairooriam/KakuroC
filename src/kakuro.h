@@ -66,9 +66,10 @@ Color Coloru8_to_raylib(Coloru8 c);
 
 typedef enum {
   TILETYPE_CURSOR,
-  TILETYPE_EMPTY,  // White cell where player enters numbers
-  TILETYPE_CLUE,   // Black cell with sum clues (diagonal split)
-  TILETYPE_BLOCKED // Solid black cell (no clues)
+  TILETYPE_EMPTY,      // White cell where player enters numbers
+  TILETYPE_CLUE,       // Black cell with sum clues (diagonal split)
+  TILETYPE_BLOCKED,    // Solid black cell (no clues)
+  TILETYPE_EMPTY_VALID // Valid number accroding to clues
 } TileType;
 
 typedef enum {
@@ -98,6 +99,7 @@ typedef struct {
   size_t count;
   size_t capacity;
 } arr_uint8_t_2d;
+size_t arr_uint8_t_2d_to_string(char *buf, size_t bufsize, arr_uint8_t_2d *arr);
 
 typedef struct {
   Vec2u8 pos; // pos of cell
@@ -178,6 +180,7 @@ void input_mouse(KakuroContext *ctx);
 void app_update(KakuroContext *ctx);
 void get_possible_sums_from_cache_for_selected(ht *combination_map,
                                                KakuroContext *ctx);
+
 void print_binary_stdout(unsigned int number);
 
 void shoot_ray_to_mouse_from_cursor_tile(KakuroContext *ctx);
