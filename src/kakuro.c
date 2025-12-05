@@ -600,13 +600,13 @@ size_t arr_uint8_t_sum(const arr_uint8_t *arr) {
   }
   return sum;
 }
-bool arr_uint8_t_contains(const arr_uint8_t *arr, uint8_t val) {
+int arr_uint8_t_contains(const arr_uint8_t *arr, uint8_t val) {
   for (size_t i = 0; i < arr->count; i++) {
     if (arr->items[i] == val) {
-      return true;
+      return i;
     }
   }
-  return false;
+  return -1;
 }
 arr_uint8_t *
 arr_uint8_t_compare_and_return_if_both_not_0(const arr_uint8_t *arr1,
@@ -834,9 +834,37 @@ void input_keys(KakuroContext *ctx) {
   } else if (IsKeyReleased(KEY_W)) {
     printf("Populating possible");
     populate_possible_sums_for_empty_tiles(ctx->combination_map, ctx);
-    int locked = kak_lock_correct_tiles(ctx->grid);
-    if (locked > 0) {
+    Node *locked = kak_lock_correct_tiles(ctx->grid);
+    // TODO: Do i want to rework my node to point to clue and clue handle the
+    // updating of values?
+    if (locked) {
       printf("Found one valid tile. Updating possible sums\n");
+      // TODO: add other types such as locked etc. isValidTile etc.
+
+      // Start from the locked position and move left to find the clue
+      int i = 0;
+      Node *node = arr_nodes_get(ctx->grid, locked->pos.x - 1, locked->pos.y);
+      while (node && node->type == TILETYPE_EMPTY && locked->pos.x > 0) {
+        if (i == 0) {
+          printf("Found empty tile at (%d, %d)\n", locked->pos.x - 1,
+                 locked->pos.y);
+
+          node = arr_nodes_get(ctx->grid, locked->pos.x - 1, locked->pos.y);
+          i++;
+        } else if (i != 0) {
+          printf("Found empty tile at (%d, %d)\n", node->pos.x - 1,
+                 node->pos.y);
+
+          node = arr_nodes_get(ctx->grid, node->pos.x - 1, node->pos.y);
+          int contains =
+              arr_uint8_t_contains(node->values, locked->values->items[0]);
+          if (contains >= 0) {
+            nob_da_remove_unordered(node->values, (size_t)contains);
+          }
+          // TODO: add security this crashes if locked
+          // tile has no values?
+        }
+      }
     }
   }
 }
@@ -1039,16 +1067,15 @@ void cache_possible_sums(ht *combination_map) {
 Node *kak_get_node_under_cursor_tile(const arr_Nodes *arr, const Node *cursor) {
   return arr_nodes_get(arr, cursor->pos.x, cursor->pos.y);
 }
-int kak_lock_correct_tiles(arr_Nodes *nodes) {
+Node *kak_lock_correct_tiles(arr_Nodes *nodes) {
   // TODO: cache of empty nodes
-  int i = 0;
   nob_da_foreach(Node *, it, nodes) {
     if ((*it)->values->count == 1) {
       (*it)->type = TILETYPE_EMPTY_VALID;
-      i++;
+      return (*it);
     }
   }
-  return i;
+  return NULL;
 }
 
 static void
@@ -1167,7 +1194,7 @@ void populate_possible_sums_for_empty_tiles(ht *combination_map,
       nob_da_foreach(arr_uint8_t *, it2, arr){
           nob_da_foreach(uint8_t, it3, (*it2)){if ((*it3) == 0){continue;
     }
-    if (!arr_uint8_t_contains(uniquearr, (*it3))) {
+    if (arr_uint8_t_contains(uniquearr, (*it3)) == -1) {
       nob_da_append(uniquearr, (*it3));
     }
   }

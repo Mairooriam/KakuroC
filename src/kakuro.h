@@ -90,7 +90,9 @@ int arr_uint8_t_serialize(const char *path, const arr_uint8_t *nodes);
 int arr_uint8_t_deserialize(const char *path, arr_uint8_t *nodes);
 arr_uint8_t *arr_uint8_t_create(size_t initial_capacity);
 size_t arr_uint8_t_sum(const arr_uint8_t *arr);
-bool arr_uint8_t_contains(const arr_uint8_t *arr, uint8_t val);
+
+// -1 = it doesnt contain. > -1 = index of the contains
+int arr_uint8_t_contains(const arr_uint8_t *arr, uint8_t val);
 
 arr_uint8_t *
 arr_uint8_t_compare_and_return_if_both_not_0(const arr_uint8_t *arr1,
@@ -105,9 +107,10 @@ size_t arr_uint8_t_2d_to_string(char *buf, size_t bufsize, arr_uint8_t_2d *arr);
 // TODO: make union for clue and empty node? to separate fields a bit
 typedef struct Node Node;
 typedef struct Node {
-  Vec2u8 pos;   // pos of cell
-  Node *clue_x; // TODO: separate empty and clue fields
-  Node *clue_y; // TODO: separate empty and clue fields
+  Vec2u8 pos; // pos of cell
+  // Node *clue_x; // TODO: separate empty and clue fields
+  // Node *clue_y; // TODO: separate empty and clue fields or do i evne want
+  // this?
   TileType type;
   arr_uint8_t *values; // value of cell
   arr_uint8_t **clue_possible_values;
@@ -160,7 +163,7 @@ void cache_possible_sums(ht *combination_map);
 Node *kak_get_node_under_cursor_tile(const arr_Nodes *arr, const Node *cursor);
 
 // returns count of locked tiles
-int kak_lock_correct_tiles(arr_Nodes *nodes);
+Node *kak_lock_correct_tiles(arr_Nodes *nodes);
 
 void kak_update_possible_values_according_placed_values(arr_Nodes *nodes);
 
