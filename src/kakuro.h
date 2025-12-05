@@ -90,6 +90,7 @@ int arr_uint8_t_serialize(const char *path, const arr_uint8_t *nodes);
 int arr_uint8_t_deserialize(const char *path, arr_uint8_t *nodes);
 arr_uint8_t *arr_uint8_t_create(size_t initial_capacity);
 size_t arr_uint8_t_sum(const arr_uint8_t *arr);
+bool arr_uint8_t_contains(const arr_uint8_t *arr, uint8_t val);
 
 arr_uint8_t *
 arr_uint8_t_compare_and_return_if_both_not_0(const arr_uint8_t *arr1,
@@ -124,8 +125,8 @@ size_t node_to_string(char *buf, size_t bufsize, const Node *node);
 
 // TODO: array functions
 typedef struct {
-  Node **nodes;
-  size_t size;
+  Node **items;
+  size_t count;
   size_t capacity;
   size_t x_dimension;
   size_t y_dimension;
@@ -180,7 +181,8 @@ void input_mouse(KakuroContext *ctx);
 void app_update(KakuroContext *ctx);
 void get_possible_sums_from_cache_for_selected(ht *combination_map,
                                                KakuroContext *ctx);
-
+void populate_possible_sums_for_empty_tiles(ht *combination_map,
+                                            KakuroContext *ctx);
 void print_binary_stdout(unsigned int number);
 
 void shoot_ray_to_mouse_from_cursor_tile(KakuroContext *ctx);

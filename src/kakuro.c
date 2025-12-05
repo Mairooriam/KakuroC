@@ -60,28 +60,28 @@ size_t node_to_string(char *buf, size_t bufsize, const Node *n) {
 }
 
 bool arr_nodes_add(arr_Nodes *arr, Node *node) {
-  if (arr->size >= arr->capacity) {
+  if (arr->count >= arr->capacity) {
     size_t new_capacity = arr->capacity * 2;
 
-    Node **temp = realloc(arr->nodes, sizeof(Node *) * new_capacity);
+    Node **temp = realloc(arr->items, sizeof(Node *) * new_capacity);
 
     if (!temp) {
       printf("Failed to reallocate nodes array\n");
       return false;
     }
 
-    arr->nodes = temp;
+    arr->items = temp;
     arr->capacity = new_capacity;
   }
 
-  arr->nodes[arr->size] = node;
-  arr->size++;
+  arr->items[arr->count] = node;
+  arr->count++;
   return true;
 }
 size_t arr_nodes_to_string(char *buf, size_t bufsize, const arr_Nodes *arr) {
   size_t written = 0;
-  for (size_t i = 0; i < arr->size; i++) {
-    written += node_to_string(buf + written, bufsize, arr->nodes[i]);
+  for (size_t i = 0; i < arr->count; i++) {
+    written += node_to_string(buf + written, bufsize, arr->items[i]);
   }
   return written;
 }
@@ -89,8 +89,8 @@ int arr_nodes_serialize(const char *path, const arr_Nodes *arr) {
   size_t written = 0;
   size_t bufsize = 1024 * 20;
   char *buf = malloc(bufsize);
-  for (size_t i = 0; i < arr->size; i++) {
-    written += node_to_string(buf + written, bufsize - written, arr->nodes[i]);
+  for (size_t i = 0; i < arr->count; i++) {
+    written += node_to_string(buf + written, bufsize - written, arr->items[i]);
     if (written >= bufsize) {
       // TODO: grow buffer
       printf("SERIALIZER OUT OF BUFFER FIX arr_nodes_serialize");
@@ -180,6 +180,7 @@ int arr_nodes_deserialize(const char *path, arr_Nodes *n) {
 
   if (feof(fp)) {
     printf("Reached end of file\n");
+
   } else if (ferror(fp)) {
     printf("Error reading file\n");
   }
@@ -199,11 +200,11 @@ arr_Nodes *arr_nodes_create(size_t x_dimension, size_t y_dimension) {
 
   arr->x_dimension = x_dimension;
   arr->y_dimension = y_dimension;
-  arr->size = 0;
+  arr->count = 0;
   arr->capacity = x_dimension * y_dimension;
-  arr->nodes = malloc(sizeof(Node *) * arr->capacity);
+  arr->items = malloc(sizeof(Node *) * arr->capacity);
 
-  if (!arr->nodes) {
+  if (!arr->items) {
     printf("Failed to allocate nodes array\n");
     free(arr);
     return NULL;
@@ -242,7 +243,7 @@ void render_grid(const arr_Nodes *arr, int margin, int size) {
 #ifdef ANIMATED
       if (index < animation_index) {
 #endif /* ifdef ANIMATED */
-        Node *n = arr->nodes[index];
+        Node *n = arr->items[index];
 
         render_node(n, margin, size);
 #ifdef ANIMATED
@@ -340,32 +341,36 @@ void render_node(const Node *n, int margin, int size) {
     DrawLine(screen_x, screen_y, screen_x + size, screen_y + size, BLACK);
 
     // SUMS TO CHARS
-    char x_sum[5];
-    snprintf(x_sum, 5, "%i", n->sum_x);
-    char y_sum[5];
-    snprintf(y_sum, 5, "%i", n->sum_y);
 
     // raylib [text] example - words alignment
-
     // CALC TEXT POSITION X
-    Vector2 x_textSize = MeasureTextEx(font, x_sum, fontSize, fontSize * .1f);
-    Vector2 x_textPos =
-        (Vector2){x_text_rect.x + Lerp(0.0f, x_text_rect.width - x_textSize.x,
-                                       ((float)1) * 0.5f),
-                  x_text_rect.y + Lerp(0.0f, x_text_rect.height - x_textSize.y,
-                                       ((float)1) * 0.5f)};
+    if (n->sum_x != 0) {
+      char x_sum[5];
+      snprintf(x_sum, 5, "%i", n->sum_x);
+      Vector2 x_textSize = MeasureTextEx(font, x_sum, fontSize, fontSize * .1f);
+      Vector2 x_textPos = (Vector2){
+          x_text_rect.x +
+              Lerp(0.0f, x_text_rect.width - x_textSize.x, ((float)1) * 0.5f),
+          x_text_rect.y +
+              Lerp(0.0f, x_text_rect.height - x_textSize.y, ((float)1) * 0.5f)};
+      DrawTextEx(font, x_sum, x_textPos, fontSize, fontSize * .1f, RAYWHITE);
+      DrawRectangleLinesEx(x_text_rect, 1.0f, RED);
+    }
+
     // CALC TEXT POSITION Y
-    Vector2 y_textSize = MeasureTextEx(font, y_sum, fontSize, fontSize * .1f);
-    Vector2 y_textPos =
-        (Vector2){y_text_rect.x + Lerp(0.0f, y_text_rect.width - y_textSize.x,
-                                       ((float)1) * 0.5f),
-                  y_text_rect.y + Lerp(0.0f, y_text_rect.height - y_textSize.y,
-                                       ((float)1) * 0.5f)};
-    // Draws texts with bounding boxes
-    DrawTextEx(font, x_sum, x_textPos, fontSize, fontSize * .1f, RAYWHITE);
-    DrawRectangleLinesEx(x_text_rect, 1.0f, RED);
-    DrawTextEx(font, y_sum, y_textPos, fontSize, fontSize * .1f, RAYWHITE);
-    DrawRectangleLinesEx(y_text_rect, 1.0f, RED);
+    if (n->sum_y) {
+      char y_sum[5];
+      snprintf(y_sum, 5, "%i", n->sum_y);
+      Vector2 y_textSize = MeasureTextEx(font, y_sum, fontSize, fontSize * .1f);
+      Vector2 y_textPos = (Vector2){
+          y_text_rect.x +
+              Lerp(0.0f, y_text_rect.width - y_textSize.x, ((float)1) * 0.5f),
+          y_text_rect.y +
+              Lerp(0.0f, y_text_rect.height - y_textSize.y, ((float)1) * 0.5f)};
+      // Draws texts with bounding boxes
+      DrawTextEx(font, y_sum, y_textPos, fontSize, fontSize * .1f, RAYWHITE);
+      DrawRectangleLinesEx(y_text_rect, 1.0f, RED);
+    }
 
   } break;
   case TILETYPE_CURSOR: {
@@ -394,7 +399,7 @@ Node *arr_nodes_get(const arr_Nodes *arr, size_t x, size_t y) {
   }
 
   size_t i = y * arr->y_dimension + x;
-  return arr->nodes[i];
+  return arr->items[i];
 }
 
 static bool has_9_empty(arr_Nodes *n, size_t start_x, size_t start_y,
@@ -595,6 +600,14 @@ size_t arr_uint8_t_sum(const arr_uint8_t *arr) {
   }
   return sum;
 }
+bool arr_uint8_t_contains(const arr_uint8_t *arr, uint8_t val) {
+  for (size_t i = 0; i < arr->count; i++) {
+    if (arr->items[i] == val) {
+      return true;
+    }
+  }
+  return false;
+}
 arr_uint8_t *
 arr_uint8_t_compare_and_return_if_both_not_0(const arr_uint8_t *arr1,
                                              const arr_uint8_t *arr2) {
@@ -688,7 +701,7 @@ void input_keys(KakuroContext *ctx) {
   if (IsKeyDown(KEY_C)) {
   } else if (IsKeyReleased(KEY_C)) {
     size_t index = cursor->pos.y * ctx->grid->y_dimension + cursor->pos.x;
-    Node *node = ctx->grid->nodes[index];
+    Node *node = ctx->grid->items[index];
     node->type = TILETYPE_CLUE;
     printf("Tile at index %zu (%u,%u) updated to clue.\n", index, cursor->pos.x,
            cursor->pos.y);
@@ -698,7 +711,7 @@ void input_keys(KakuroContext *ctx) {
   if (IsKeyDown(KEY_B)) {
   } else if (IsKeyReleased(KEY_B)) {
     size_t index = cursor->pos.y * ctx->grid->y_dimension + cursor->pos.x;
-    Node *node = ctx->grid->nodes[index];
+    Node *node = ctx->grid->items[index];
     node->type = TILETYPE_BLOCKED;
     printf("Tile at index %zu (%u,%u) updated to blockeblockedd.\n", index,
            cursor->pos.x, cursor->pos.y);
@@ -708,7 +721,7 @@ void input_keys(KakuroContext *ctx) {
   if (IsKeyDown(KEY_P)) {
   } else if (IsKeyReleased(KEY_P)) {
     size_t index = cursor->pos.y * ctx->grid->y_dimension + cursor->pos.x;
-    Node *node = ctx->grid->nodes[index];
+    Node *node = ctx->grid->items[index];
     size_t bufsize = 1024;
     char buf[bufsize];
     node_to_string(buf, bufsize, node);
@@ -735,7 +748,7 @@ void input_keys(KakuroContext *ctx) {
   if (charPressed >= '0' && charPressed <= '9') {
     int number = charPressed - '0';
     size_t index = cursor->pos.y * ctx->grid->y_dimension + cursor->pos.x;
-    Node *node = ctx->grid->nodes[index];
+    Node *node = ctx->grid->items[index];
     switch (node->type) {
     case TILETYPE_BLOCKED: {
     } break;
@@ -819,7 +832,8 @@ void input_keys(KakuroContext *ctx) {
 
   if (IsKeyDown(KEY_W)) {
   } else if (IsKeyReleased(KEY_W)) {
-    shoot_ray_to_mouse_from_cursor_tile(ctx);
+    printf("Populating possible");
+    populate_possible_sums_for_empty_tiles(ctx->combination_map, ctx);
   }
 }
 
@@ -1021,10 +1035,9 @@ void cache_possible_sums(ht *combination_map) {
 Node *kak_get_node_under_cursor_tile(const arr_Nodes *arr, const Node *cursor) {
   return arr_nodes_get(arr, cursor->pos.x, cursor->pos.y);
 }
-void get_possible_sums_from_cache_for_selected(ht *combination_map,
-                                               KakuroContext *ctx) {
 
-  Node *n = kak_get_node_under_cursor_tile(ctx->grid, ctx->Cursor_tile);
+static arr_uint8_t_2d *
+get_possible_sums_from_cache_for_tile(ht *combination_map, Node *n) {
 
   // GETTING AND PRINTING COMBINATIONS
   //
@@ -1037,7 +1050,7 @@ void get_possible_sums_from_cache_for_selected(ht *combination_map,
     nob_log(NOB_WARNING,
             "Value for count_x: %hhu, sum_x: %hhu doens't exist in the cache",
             count_x, sum_x);
-    return;
+    return NULL;
   }
   printf("Key: %hu (Count: %hhu, Sum: %hhu), Combinations: %zu\n", key_x,
          count_x, sum_x, combs_x->count);
@@ -1056,7 +1069,7 @@ void get_possible_sums_from_cache_for_selected(ht *combination_map,
     nob_log(NOB_WARNING,
             "Value for count_y: %hhu, sum_y: %hhu doens't exist in the cache",
             count_y, sum_y);
-    return;
+    return NULL;
   }
   printf("Key: %hu (Count: %hhu, Sum: %hhu), Combinations: %zu\n", key_y,
          count_y, sum_y, combs_y->count);
@@ -1070,20 +1083,9 @@ void get_possible_sums_from_cache_for_selected(ht *combination_map,
   //  1 2 3 4 5 6 7 8 9
   //  0 0 3 4 5 6 7 8 9
   //  ^ if number is 0 add to map to numbers to not include
-  arr_uint8_t *unique = arr_uint8_t_create(9);
 
-  // uint8_t t_arr1[9] = {1, 2, 3, 4, 0, 0, 0, 0, 0};
-  // uint8_t t_arr2[9] = {0, 0, 3, 0, 5, 6, 7, 8, 9};
-
-  // arr_uint8_t *t_arr = arr_uint8_t_create(10);
-  // for (size_t i = 0; i < 9; i++) {
-  //   if ((t_arr1[i] != 0) && (t_arr2[i] != 0)) {
-  //     nob_da_append(t_arr, i + 1); // +1 since index 0 = 1
-  //   }
-  // }
-  //
-  //
-  // If arr size not 1 -> tile is ambigious
+  // If arr size not 1 -> tile is ambigious -> if the 1 arr left size != 1 it is
+  // ambigious aswell
   arr_uint8_t_2d *arr = malloc(sizeof(arr_uint8_t_2d));
   arr->capacity = 9;
   arr->count = 0;
@@ -1101,8 +1103,66 @@ void get_possible_sums_from_cache_for_selected(ht *combination_map,
   size_t bufsize = 1024 * 8;
   char buf[bufsize];
   arr_uint8_t_2d_to_string(buf, bufsize, arr);
-  printf("Indexes with 0 %s\n", buf);
+  // TODO: Might overflow buffer
+  nob_log(NOB_INFO, "Node at: x:%hhu,y:%hhu possible values: %s\n", n->pos.x,
+          n->pos.y, buf);
+  return arr;
 }
+
+void get_possible_sums_from_cache_for_selected(ht *combination_map,
+                                               KakuroContext *ctx) {
+  Node *n = kak_get_node_under_cursor_tile(ctx->grid, ctx->Cursor_tile);
+  arr_uint8_t_2d *arr =
+      get_possible_sums_from_cache_for_tile(combination_map, n);
+}
+
+void populate_possible_sums_for_empty_tiles(ht *combination_map,
+                                            KakuroContext *ctx) {
+  nob_da_foreach(Node *, it1, ctx->grid) {
+    arr_uint8_t_2d *arr =
+        get_possible_sums_from_cache_for_tile(combination_map, (*it1));
+    // TODO: use map in future? somethgin esle s? // make get
+    // possible sums from cache for tile that takes in the
+    // node and sets the values on the first iteration the the tinhgfyu
+    if ((*it1)->pos.x == 9 && (*it1)->pos.y == 9) {
+      printf("lol");
+    }
+    if (arr != NULL) {
+      arr_uint8_t *uniquearr = arr_uint8_t_create(16);
+      nob_da_foreach(arr_uint8_t *, it2, arr){nob_da_foreach(
+          uint8_t, it3, (*it2)){if (!arr_uint8_t_contains(uniquearr, (*it3))){
+          nob_da_append(uniquearr, (*it3));
+    }
+  }
+}
+// TODO: leaks if called multiple times;
+// TODO: can this formatting be fixed with clang format?
+// 2. Configure Clang-Format Settings
+// The C_Cpp.clang_format_style setting allows you to customize how clang-format
+// handles macros:
+//
+// Show in Settings Editor
+// Key macro-related options you can add:
+//
+// IndentPPDirectives: BeforeHash - Indents preprocessor directives
+// AlignConsecutiveMacros: Consecutive - Aligns consecutive macro definitions
+// MacroBlockBegin: \"^nob_da_foreach\" - Treats your macro as a block start
+// MacroBlockEnd: \"^}\" - Treats closing brace as block end
+(*it1)->values = uniquearr;
+// TODO: random buf
+char buf[1024];
+arr_uint8_t_to_string(buf, 1024, uniquearr);
+if ((*it1)->pos.x == 9 && (*it1)->pos.y == 9) {
+  printf("lol");
+}
+
+nob_log(NOB_INFO, "Set x:%hhu,y:%hhu values to: %s", (*it1)->pos.x,
+        (*it1)->pos.y, buf);
+}
+}
+}
+
 void shoot_ray_to_mouse_from_cursor_tile(KakuroContext *ctx) {
+  (void)ctx;
   // TODO: do tihs haha ihihih
 }
