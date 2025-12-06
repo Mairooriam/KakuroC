@@ -31,7 +31,8 @@ int main(void) {
 
   // Context init
   KakuroContext ctx = {0};
-  ctx.Cursor_tile = node_create((Vec2u8){0, 0}, TILETYPE_CURSOR, 0, 0);
+  ctx.Cursor_tile.tile = node_create((Vec2u8){0, 0}, TILETYPE_CURSOR, 0, 0,
+                                     (Color){100, 100, 0, 100});
   ctx.state = APP_STATE_NONE;
   Camera2D camera = {0};
   camera.zoom = 1.0f;
@@ -66,7 +67,7 @@ int main(void) {
     // END OF INPUTS
     input_process(&ctx);
     // TODO: if need
-    //  app_update(ctx);
+    update_process(&ctx);
 
     // RENDERING
     BeginDrawing();
@@ -75,7 +76,7 @@ int main(void) {
     ClearBackground(RAYWHITE);
     DrawText("Hello, World!", 190, 200, 20, LIGHTGRAY);
     render_grid(ctx.grid, ctx.margin, ctx.size);
-    render_node(ctx.Cursor_tile, ctx.margin, ctx.size);
+    render_node(ctx.Cursor_tile.tile, ctx.margin, ctx.size);
     render_state_info(ctx.state);
 
     EndMode2D();

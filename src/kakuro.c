@@ -1,5 +1,5 @@
 #include "kakuro.h"
-
+#include "grid_utils.h"
 #include "ht.h"
 #include "raymath.h" // Required for: Lerp()
 #include <assert.h>
@@ -11,7 +11,8 @@
 
 #define NOB_IMPLEMENTATION
 #include "nob.h"
-Node *node_create(Vec2u8 pos, TileType type, uint8_t sum_x, uint8_t sum_y) {
+Node *node_create(Vec2u8 pos, TileType type, uint8_t sum_x, uint8_t sum_y,
+                  Color color) {
   Node *node = malloc(sizeof(Node));
   if (!node)
     return NULL;
@@ -23,18 +24,20 @@ Node *node_create(Vec2u8 pos, TileType type, uint8_t sum_x, uint8_t sum_y) {
   node->sum_y = sum_y;
   node->x_empty_count = 0;
   node->y_empty_count = 0;
+  node->color = color;
   return node;
 }
 
 Node *node_create_empty(Vec2u8 pos) {
-  return node_create(pos, TILETYPE_EMPTY, 0, 0);
+  return node_create(pos, TILETYPE_EMPTY, 0, 0, (Color){100, 0, 0, 100});
 }
 Node *node_create_clue(Vec2u8 pos, uint8_t sum_x, uint8_t sum_y) {
-  return node_create(pos, TILETYPE_CLUE, sum_x, sum_y);
+  return node_create(pos, TILETYPE_CLUE, sum_x, sum_y,
+                     (Color){25, 25, 25, 100});
 }
 
 Node *node_create_blocked(Vec2u8 pos) {
-  return node_create(pos, TILETYPE_BLOCKED, 0, 0);
+  return node_create(pos, TILETYPE_BLOCKED, 0, 0, (Color){0, 0, 0, 0});
 }
 
 size_t node_to_string(char *buf, size_t bufsize, const Node *n) {
@@ -162,7 +165,7 @@ int arr_nodes_deserialize(const char *path, arr_Nodes *n) {
         printf("Parsed y_empty_count = %hhu\n", tmpNode.y_empty_count);
 
         Node *node = node_create(tmpNode.pos, tmpNode.type, tmpNode.sum_x,
-                                 tmpNode.sum_y);
+                                 tmpNode.sum_y, (Color){0, 0, 0, 0});
         if (node) {
           arr_nodes_add(n, node);
           printf("Added node to array\n");
@@ -273,22 +276,17 @@ void render_node(const Node *n, int margin, int size) {
 
   switch (n->type) {
   case TILETYPE_BLOCKED: {
-    DrawRectangleRec(rect, (Color){0, 0, 0, 255});
+    DrawRectangleRec(rect, n->color);
     DrawLine(screen_x, screen_y, screen_x + size, screen_y + size, BLACK);
   } break;
   case TILETYPE_EMPTY:
   case TILETYPE_EMPTY_VALID: {
-    // TODO: do this some other way
-    Color color = (Color){200, 25, 25, 100};
-    if (n->type == TILETYPE_EMPTY_VALID) {
-      color = (Color){0, 200, 0, 100};
-    }
     Rectangle r1 = (Rectangle){rect.x, rect.y, (float)size, (float)size / 3};
     Rectangle r2 = (Rectangle){rect.x, rect.y + (float)size / 3, (float)size,
                                (float)size / 3};
     Rectangle r3 = (Rectangle){rect.x, rect.y + (float)size / 3 * 2,
                                (float)size, (float)size / 3};
-    DrawRectangleRec(rect, color);
+    DrawRectangleRec(rect, n->color);
     // R   G  B
     // TODO: have cache for each node for the string???
     //
@@ -337,7 +335,7 @@ void render_node(const Node *n, int margin, int size) {
   } break;
 
   case TILETYPE_CLUE: {
-    DrawRectangleRec(rect, (Color){125, 125, 125, 255});
+    DrawRectangleRec(rect, n->color);
     DrawLine(screen_x, screen_y, screen_x + size, screen_y + size, BLACK);
 
     // SUMS TO CHARS
@@ -374,112 +372,10 @@ void render_node(const Node *n, int margin, int size) {
 
   } break;
   case TILETYPE_CURSOR: {
-    DrawRectangleRec(rect, (Color){200, 0, 200, 175});
+    DrawRectangleRec(rect, n->color);
 
   } break;
   }
-}
-typedef enum { DIR_UP, DIR_DOWN, DIR_LEFT, DIR_RIGHT } Direction;
-
-static Node *_kak_get_next_node(arr_Nodes *grid, Node *current,
-                                Direction direction) {
-
-  uint8_t x = current->pos.x;
-  uint8_t y = current->pos.y;
-  Node *node = NULL;
-  switch (direction) {
-  case DIR_UP: {
-    node = arr_nodes_get(grid, x, y - 1);
-
-  } break;
-  case DIR_DOWN: {
-    node = arr_nodes_get(grid, x, y + 1);
-
-  } break;
-  case DIR_LEFT: {
-    node = arr_nodes_get(grid, x - 1, y);
-  } break;
-  case DIR_RIGHT: {
-    node = arr_nodes_get(grid, x + 1, y);
-
-  } break;
-  default: {
-    nob_log(NOB_WARNING, "????");
-  }
-  }
-
-  if (node == NULL) {
-    nob_log(NOB_WARNING, "Tried getting node out of bounds");
-    return NULL;
-  } else {
-    return node;
-  }
-}
-
-static int _node_filter_non_empty_count(const Node *node, void *userdata) {
-  FilterData *filter = (FilterData *)userdata;
-
-  if (!filter) {
-    return -1;
-  }
-
-  if (filter->type == FILTER_COUNT) {
-    if (filter->data.fCount.targetCount == filter->data.fCount.count) {
-      return 1;
-    }
-
-    if (node->type == TILETYPE_EMPTY) {
-      filter->data.fCount.count++;
-    }
-  }
-  return 0;
-}
-
-static int _modify_nodetype_to(Node *node, void *userdata) {
-  ModifyData *data = (ModifyData *)userdata;
-  if (!data) {
-    nob_log(NOB_WARNING, "Tried to modify node with invalid data");
-    return -1;
-  }
-
-  if (data->type != MODIFY_TILETYPE) {
-    nob_log(NOB_WARNING, "Tried to modify node with wrong data");
-    return -1;
-  }
-
-  nob_log(NOB_INFO, "Modifying node x:%hhu, y:%hhu", node->pos.x, node->pos.y);
-  node->type = data->data.tiletype;
-  return 1;
-}
-
-int kak_explore_from_node_until(arr_Nodes *grid, Node *target,
-                                NodeFilterFn filter, NodeModifyFn modify) {
-  // Explores surrounding nodes to the supplied node
-  // until specified tiletype is found
-  // uses callback on each node
-
-  // from target go <-- --> up and down
-  Node *current = target;
-  FilterData filterD = {0};
-  filterD.type = FILTER_COUNT;
-  filterD.data.fCount.count = 0;
-  filterD.data.fCount.targetCount = 0;
-
-  ModifyData data = {0};
-  data.type = MODIFY_TILETYPE;
-  data.data.tiletype = TILETYPE_BLOCKED;
-
-  while (current != NULL) {
-    current = _kak_get_next_node(grid, current, DIR_LEFT);
-    if (current) {
-      if (filter(current, (void *)&filterD)) {
-        modify(current, (void *)&data);
-        filterD.data.fCount.count = 0;
-      }
-    }
-  }
-
-  return 1;
 }
 
 void render_state_info(int state) {
@@ -758,31 +654,38 @@ void input_process(KakuroContext *ctx) {
 
 void input_cursor_tile(KakuroContext *ctx) {
   // START OF INPUTS
-  Node *cursor = ctx->Cursor_tile;
+  CursorNode *cursor = &ctx->Cursor_tile;
   arr_Nodes *grid = ctx->grid;
   // TODO: add if held down for xxx frames -> it goes into isKeyPressed mode
-  if (IsKeyPressed(KEY_RIGHT) && cursor->pos.x < grid->x_dimension - 1) {
-    cursor->pos.x++;
-    printf("[MOVE] Right to (%u, %u)\n", cursor->pos.x, cursor->pos.y);
+  if (IsKeyPressed(KEY_RIGHT) && cursor->tile->pos.x < grid->x_dimension - 1) {
+    cursor->tile->pos.x++;
+    cursor->moved = true;
+    printf("[MOVE] Right to (%u, %u)\n", cursor->tile->pos.x,
+           cursor->tile->pos.y);
   }
 
-  if (IsKeyPressed(KEY_LEFT) && cursor->pos.x > 0) {
-    cursor->pos.x--;
-    printf("[MOVE] Left to (%u, %u)\n", cursor->pos.x, cursor->pos.y);
+  if (IsKeyPressed(KEY_LEFT) && cursor->tile->pos.x > 0) {
+    cursor->tile->pos.x--;
+    cursor->moved = true;
+    printf("[MOVE] Left to (%u, %u)\n", cursor->tile->pos.x,
+           cursor->tile->pos.y);
   }
-  if (IsKeyPressed(KEY_UP) && cursor->pos.y > 0) {
-    cursor->pos.y--;
-    printf("[MOVE] Up to (%u, %u)\n", cursor->pos.x, cursor->pos.y);
+  if (IsKeyPressed(KEY_UP) && cursor->tile->pos.y > 0) {
+    cursor->tile->pos.y--;
+    cursor->moved = true;
+    printf("[MOVE] Up to (%u, %u)\n", cursor->tile->pos.x, cursor->tile->pos.y);
   }
-  if (IsKeyPressed(KEY_DOWN) && cursor->pos.y < grid->y_dimension - 1) {
-    cursor->pos.y++;
-    printf("[MOVE] Down to (%u, %u)\n", cursor->pos.x, cursor->pos.y);
+  if (IsKeyPressed(KEY_DOWN) && cursor->tile->pos.y < grid->y_dimension - 1) {
+    cursor->tile->pos.y++;
+    cursor->moved = true;
+    printf("[MOVE] Down to (%u, %u)\n", cursor->tile->pos.x,
+           cursor->tile->pos.y);
   }
 }
 
 void input_keys(KakuroContext *ctx) {
   // SAVING
-  Node *cursor = ctx->Cursor_tile;
+  Node *cursor = ctx->Cursor_tile.tile;
   if (IsKeyDown(KEY_S)) {
   } else if (IsKeyReleased(KEY_S)) {
     printf("[SAVE] - saving current map\n");
@@ -940,40 +843,22 @@ void input_keys(KakuroContext *ctx) {
     // TODO: Do i want to rework my node to point to clue and clue handle the
     // updating of values?
     if (locked) {
-      // printf("Found one valid tile. Updating possible sums\n");
-      // // TODO: add other types such as locked etc. isValidTile etc.
-      //
-      // // Start from the locked position and move left to find the clue
-      // if (locked->pos.x > 0) {
-      //   int current_x = (int)locked->pos.x - 1;
-      //
-      //   while (current_x >= 0) {
-      //     Node *node =
-      //         arr_nodes_get(ctx->grid, (size_t)current_x, locked->pos.y);
-      //
-      //     if (!node || node->type != TILETYPE_EMPTY) {
-      //       // Hit a non-empty tile (clue or blocked), stop
-      //       break;
-      //     }
-      //
-      //     printf("Found empty tile at (%d, %d)\n", current_x, locked->pos.y);
-      //
-      //     // Check if this node contains the locked value
-      //     int contains =
-      //         arr_uint8_t_contains(node->values, locked->values->items[0]);
-      //     if (contains >= 0) {
-      //       nob_da_remove_unordered(node->values, (size_t)contains);
-      //       printf("Removed value %hhu from tile at (%d, %d)\n",
-      //              locked->values->items[0], current_x, locked->pos.y);
-      //     }
-      //
-      //     current_x--;
-      //   }
-      // }
-      //
+      ModifyData data = {0};
+      data.type = MODIFY_NODE_VALUES;
+      data.data.value.value = locked->values->items[0];
+      ModifyCb modify = {0};
+      modify.fn = modify_node_values;
+      modify.data = (void *)&data;
 
-      kak_explore_from_node_until(
-          ctx->grid, locked, _node_filter_non_empty_count, _modify_nodetype_to);
+      FilterData filterD = {0};
+      filterD.type = FILTER_TILETYPE;
+      filterD.data.tiletype = TILETYPE_CLUE;
+      FilterCb filter = {0};
+      filter.fn = filter_tiletype;
+      filter.data = (void *)&filterD;
+
+      // explores grid and uses modify function according to filter function
+      kak_explore_from_node_until(ctx->grid, locked, filter, modify);
     }
   }
 }
@@ -1274,7 +1159,7 @@ get_possible_sums_from_cache_for_tile(ht *combination_map, Node *n) {
 
 void get_possible_sums_from_cache_for_selected(ht *combination_map,
                                                KakuroContext *ctx) {
-  Node *n = kak_get_node_under_cursor_tile(ctx->grid, ctx->Cursor_tile);
+  Node *n = kak_get_node_under_cursor_tile(ctx->grid, ctx->Cursor_tile.tile);
   arr_uint8_t_2d *arr =
       get_possible_sums_from_cache_for_tile(combination_map, n);
 }
@@ -1330,4 +1215,21 @@ nob_log(NOB_INFO, "Set x:%hhu,y:%hhu values to: %s", (*it1)->pos.x,
 void shoot_ray_to_mouse_from_cursor_tile(KakuroContext *ctx) {
   (void)ctx;
   // TODO: do tihs haha ihihih
+}
+
+void update_process(KakuroContext *ctx) {
+  if (ctx->Cursor_tile.moved) {
+    ModifyData_nodeField field_data = {.node = {.color = RED, .id = 42},
+                                       .flags =
+                                           NODE_FIELD_COLOR | NODE_FIELD_ID};
+    ModifyData mData = {.type = MODIFY_NODE_FIELD, .data.f = field_data};
+    ModifyCb modify = {.fn = ModifyData_node_field, .data = (void *)&mData};
+
+    FilterData_tiletype fData = {.tiletype = TILETYPE_EMPTY};
+    FilterCb filter = {.fn = filter_tiletype, .data = (void *)&fData};
+
+    kak_explore_from_node_until(ctx->grid, ctx->Cursor_tile.tile, filter,
+                                modify);
+    ctx->Cursor_tile.moved = false;
+  }
 }

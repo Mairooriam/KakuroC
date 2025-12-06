@@ -124,9 +124,11 @@ typedef struct Node {
   uint8_t sum_x;         // row
   uint8_t x_empty_count; // count of empty nodes for clue row or column
   uint8_t y_empty_count;
+  Color color;
 } Node;
 // TODO: add freeing of node
-Node *node_create(Vec2u8 pos, TileType type, uint8_t sum_x, uint8_t sum_y);
+Node *node_create(Vec2u8 pos, TileType type, uint8_t sum_x, uint8_t sum_y,
+                  Color color);
 Node *node_create_empty(Vec2u8 pos);
 Node *node_create_clue(Vec2u8 pos, uint8_t sum_x, uint8_t sum_y);
 Node *node_create_blocked(Vec2u8 pos);
@@ -167,56 +169,17 @@ Node *kak_get_node_under_cursor_tile(const arr_Nodes *arr, const Node *cursor);
 // returns count of locked tiles
 Node *kak_lock_correct_tiles(arr_Nodes *nodes);
 
-// filter function signature
-
-typedef enum {
-  FILTER_NO_USER_DATA,
-  FILTER_COUNT,
-} FilterType;
-typedef struct {
-  size_t count;
-  size_t targetCount;
-} FilterCountData;
-
-typedef struct {
-  FilterType type;
-  union {
-    FilterCountData fCount;
-  } data;
-} FilterData;
-
-// -1 invalid userdata, 0 filter false, >= 1 true
-typedef int (*NodeFilterFn)(const Node *node, void *userdata);
-// modifies node. returns -1 if tried to modify invalid node?
-typedef int (*NodeModifyFn)(Node *node, void *userdata);
-
-typedef struct {
-  NodeModifyFn fn;
-  void *data;
-} ModifyCb;
-
-typedef enum {
-  MODIFY_TILETYPE,
-} ModifyDataType;
-typedef struct {
-  ModifyDataType type;
-  union {
-    TileType tiletype;
-  } data;
-} ModifyData;
-
-// Explores surrounding nodes to the supplied node
-// until specified tiletype is found
-// uses modify on each node
-int kak_explore_from_node_until(arr_Nodes *grid, Node *target,
-                                NodeFilterFn filter, NodeModifyFn modify);
-
 Vector2 text_calculate_position(const Rectangle *rect, Font font,
                                 float fontsize, char *buf);
 
+typedef struct {
+  Node *tile;
+  bool moved;
+} CursorNode;
+
 // Context
 typedef struct {
-  Node *Cursor_tile;
+  CursorNode Cursor_tile;
   arr_Nodes *grid;
   AppState state;
   float mWheel;
@@ -234,7 +197,8 @@ void input_keys(KakuroContext *ctx);
 void input_state(KakuroContext *ctx);
 void input_mouse(KakuroContext *ctx);
 
-void app_update(KakuroContext *ctx);
+void update_process(KakuroContext *ctx);
+
 void get_possible_sums_from_cache_for_selected(ht *combination_map,
                                                KakuroContext *ctx);
 void populate_possible_sums_for_empty_tiles(ht *combination_map,
