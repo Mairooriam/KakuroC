@@ -4,6 +4,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+// https://dev.to/0xog_pg/function-overloading-in-c-7nj
+#define overload __attribute__((overloadable))
 // Select map size ( 180 degree rotational symmetry about the point at the
 // center of the white cells) choose player to place black squares. if there is
 // sums longer than 1-9 add black cell? choose how to random it. no 1 number
@@ -105,7 +108,6 @@ typedef struct {
 size_t arr_uint8_t_2d_to_string(char *buf, size_t bufsize, arr_uint8_t_2d *arr);
 
 // TODO: make union for clue and empty node? to separate fields a bit
-typedef struct Node Node;
 typedef struct Node {
   Vec2u8 pos; // pos of cell
   // Node *clue_x; // TODO: separate empty and clue fields
@@ -165,7 +167,44 @@ Node *kak_get_node_under_cursor_tile(const arr_Nodes *arr, const Node *cursor);
 // returns count of locked tiles
 Node *kak_lock_correct_tiles(arr_Nodes *nodes);
 
-void kak_update_possible_values_according_placed_values(arr_Nodes *nodes);
+// filter function signature
+
+typedef enum {
+  FILTER_NO_USER_DATA,
+  FILTER_COUNT,
+} FilterType;
+typedef struct {
+  size_t count;
+  size_t targetCount;
+} FilterCountData;
+
+typedef struct {
+  FilterType type;
+  union {
+    FilterCountData fCount;
+  } data;
+} FilterData;
+
+// -1 invalid userdata, 0 filter false, >= 1 true
+typedef int (*NodeFilterFn)(const Node *node, void *userdata);
+// modifies node. returns -1 if tried to modify invalid node?
+typedef int (*NodeModifyFn)(Node *node, void *userdata);
+
+typedef enum {
+  MODIFY_TILETYPE,
+} ModifyDataType;
+typedef struct {
+  ModifyDataType type;
+  union {
+    TileType type;
+  } data;
+} ModifyData;
+
+// Explores surrounding nodes to the supplied node
+// until specified tiletype is found
+// uses modify on each node
+int kak_explore_from_node_until(arr_Nodes *grid, Node *target,
+                                NodeFilterFn filter, NodeModifyFn *modify);
 
 Vector2 text_calculate_position(const Rectangle *rect, Font font,
                                 float fontsize, char *buf);

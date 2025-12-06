@@ -838,33 +838,37 @@ void input_keys(KakuroContext *ctx) {
     // TODO: Do i want to rework my node to point to clue and clue handle the
     // updating of values?
     if (locked) {
-      printf("Found one valid tile. Updating possible sums\n");
-      // TODO: add other types such as locked etc. isValidTile etc.
-
-      // Start from the locked position and move left to find the clue
-      int i = 0;
-      Node *node = arr_nodes_get(ctx->grid, locked->pos.x - 1, locked->pos.y);
-      while (node && node->type == TILETYPE_EMPTY && locked->pos.x > 0) {
-        if (i == 0) {
-          printf("Found empty tile at (%d, %d)\n", locked->pos.x - 1,
-                 locked->pos.y);
-
-          node = arr_nodes_get(ctx->grid, locked->pos.x - 1, locked->pos.y);
-          i++;
-        } else if (i != 0) {
-          printf("Found empty tile at (%d, %d)\n", node->pos.x - 1,
-                 node->pos.y);
-
-          node = arr_nodes_get(ctx->grid, node->pos.x - 1, node->pos.y);
-          int contains =
-              arr_uint8_t_contains(node->values, locked->values->items[0]);
-          if (contains >= 0) {
-            nob_da_remove_unordered(node->values, (size_t)contains);
-          }
-          // TODO: add security this crashes if locked
-          // tile has no values?
-        }
-      }
+      // printf("Found one valid tile. Updating possible sums\n");
+      // // TODO: add other types such as locked etc. isValidTile etc.
+      //
+      // // Start from the locked position and move left to find the clue
+      // if (locked->pos.x > 0) {
+      //   int current_x = (int)locked->pos.x - 1;
+      //
+      //   while (current_x >= 0) {
+      //     Node *node =
+      //         arr_nodes_get(ctx->grid, (size_t)current_x, locked->pos.y);
+      //
+      //     if (!node || node->type != TILETYPE_EMPTY) {
+      //       // Hit a non-empty tile (clue or blocked), stop
+      //       break;
+      //     }
+      //
+      //     printf("Found empty tile at (%d, %d)\n", current_x, locked->pos.y);
+      //
+      //     // Check if this node contains the locked value
+      //     int contains =
+      //         arr_uint8_t_contains(node->values, locked->values->items[0]);
+      //     if (contains >= 0) {
+      //       nob_da_remove_unordered(node->values, (size_t)contains);
+      //       printf("Removed value %hhu from tile at (%d, %d)\n",
+      //              locked->values->items[0], current_x, locked->pos.y);
+      //     }
+      //
+      //     current_x--;
+      //   }
+      // }
+      kak_explore_from_node_until(ctx->grid, locked, NULL, NULL);
     }
   }
 }
@@ -1078,13 +1082,112 @@ Node *kak_lock_correct_tiles(arr_Nodes *nodes) {
   return NULL;
 }
 
-static void
-_kak_update_possible_values_according_placed_values(arr_Nodes *nodes, Node *n) {
+typedef enum { DIR_UP, DIR_DOWN, DIR_LEFT, DIR_RIGHT } Direction;
 
-  // Collect all locked values from
+static Node *_kak_get_next_node(arr_Nodes *grid, Node *current,
+                                Direction direction) {
+
+  uint8_t x = current->pos.x;
+  uint8_t y = current->pos.y;
+  Node *node = NULL;
+  switch (direction) {
+  case DIR_UP: {
+    node = arr_nodes_get(grid, x, y - 1);
+
+  } break;
+  case DIR_DOWN: {
+    node = arr_nodes_get(grid, x, y + 1);
+
+  } break;
+  case DIR_LEFT: {
+    node = arr_nodes_get(grid, x - 1, y);
+  } break;
+  case DIR_RIGHT: {
+    node = arr_nodes_get(grid, x + 1, y);
+
+  } break;
+  default: {
+    nob_log(NOB_WARNING, "????");
+  }
+  }
+
+  if (node == NULL) {
+    nob_log(NOB_WARNING, "Tried getting node out of bounds");
+    return NULL;
+  } else {
+    return node;
+  }
 }
 
-void kak_update_possible_values_according_placed_values(arr_Nodes *nodes) {}
+static int _node_filter_non_empty_count(const Node *node, void *userdata) {
+  FilterData *filter = (FilterData *)userdata;
+
+  if (!filter) {
+    return -1;
+  }
+
+  if (filter->type == FILTER_COUNT) {
+    if (filter->data.fCount.targetCount == filter->data.fCount.count) {
+      return 1;
+    }
+
+    if (node->type == TILETYPE_EMPTY) {
+      filter->data.fCount.count++;
+    }
+  }
+  return 0;
+}
+
+static int _modify_nodetype_to(Node *node, void *userdata) {
+  ModifyData *data = (ModifyData *)userdata;
+  if (!data) {
+    nob_log(NOB_WARNING, "Tried to modify node with invalid data");
+    return -1;
+  }
+
+  if (data->type != MODIFY_TILETYPE) {
+    nob_log(NOB_WARNING, "Tried to modify node with wrong data");
+    return -1;
+  }
+
+  nob_log(NOB_INFO, "Modifying node x:%hhu, y:%hhu", node->pos.x, node->pos.y);
+  node->type = data->data.type;
+  return 1;
+}
+
+int kak_explore_from_node_until(arr_Nodes *grid, Node *target,
+                                NodeFilterFn filter, NodeModifyFn *modify) {
+  // Explores surrounding nodes to the supplied node
+  // until specified tiletype is found
+  // uses callback on each node
+
+  // from target go <-- --> up and down
+  Node *current = target;
+  FilterData filterD = {0};
+  filterD.type = FILTER_COUNT;
+  filterD.data.fCount.count = 0;
+  filterD.data.fCount.targetCount = 2;
+
+  while (current != NULL) {
+    current = _kak_get_next_node(grid, current, DIR_LEFT);
+    if (current) {
+      printf("Got next node x:%hhu, y:%hhu\n", current->pos.x, current->pos.y);
+      if (_node_filter_non_empty_count(current, (void *)&filterD)) {
+        printf("filter hit non empty x:%hhu, y:%hhu\n", current->pos.x,
+               current->pos.y);
+        ModifyData data = {0};
+        data.type = MODIFY_TILETYPE;
+        data.data.type = TILETYPE_BLOCKED;
+        _modify_nodetype_to(current, (void *)&data);
+        printf("filter data count:%zu , target:%zu\n",
+               filterD.data.fCount.count, filterD.data.fCount.targetCount);
+        filterD.data.fCount.count = 0;
+      }
+    }
+  }
+
+  return 1;
+}
 
 static arr_uint8_t_2d *
 get_possible_sums_from_cache_for_tile(ht *combination_map, Node *n) {
