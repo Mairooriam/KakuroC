@@ -379,6 +379,108 @@ void render_node(const Node *n, int margin, int size) {
   } break;
   }
 }
+typedef enum { DIR_UP, DIR_DOWN, DIR_LEFT, DIR_RIGHT } Direction;
+
+static Node *_kak_get_next_node(arr_Nodes *grid, Node *current,
+                                Direction direction) {
+
+  uint8_t x = current->pos.x;
+  uint8_t y = current->pos.y;
+  Node *node = NULL;
+  switch (direction) {
+  case DIR_UP: {
+    node = arr_nodes_get(grid, x, y - 1);
+
+  } break;
+  case DIR_DOWN: {
+    node = arr_nodes_get(grid, x, y + 1);
+
+  } break;
+  case DIR_LEFT: {
+    node = arr_nodes_get(grid, x - 1, y);
+  } break;
+  case DIR_RIGHT: {
+    node = arr_nodes_get(grid, x + 1, y);
+
+  } break;
+  default: {
+    nob_log(NOB_WARNING, "????");
+  }
+  }
+
+  if (node == NULL) {
+    nob_log(NOB_WARNING, "Tried getting node out of bounds");
+    return NULL;
+  } else {
+    return node;
+  }
+}
+
+static int _node_filter_non_empty_count(const Node *node, void *userdata) {
+  FilterData *filter = (FilterData *)userdata;
+
+  if (!filter) {
+    return -1;
+  }
+
+  if (filter->type == FILTER_COUNT) {
+    if (filter->data.fCount.targetCount == filter->data.fCount.count) {
+      return 1;
+    }
+
+    if (node->type == TILETYPE_EMPTY) {
+      filter->data.fCount.count++;
+    }
+  }
+  return 0;
+}
+
+static int _modify_nodetype_to(Node *node, void *userdata) {
+  ModifyData *data = (ModifyData *)userdata;
+  if (!data) {
+    nob_log(NOB_WARNING, "Tried to modify node with invalid data");
+    return -1;
+  }
+
+  if (data->type != MODIFY_TILETYPE) {
+    nob_log(NOB_WARNING, "Tried to modify node with wrong data");
+    return -1;
+  }
+
+  nob_log(NOB_INFO, "Modifying node x:%hhu, y:%hhu", node->pos.x, node->pos.y);
+  node->type = data->data.tiletype;
+  return 1;
+}
+
+int kak_explore_from_node_until(arr_Nodes *grid, Node *target,
+                                NodeFilterFn filter, NodeModifyFn modify) {
+  // Explores surrounding nodes to the supplied node
+  // until specified tiletype is found
+  // uses callback on each node
+
+  // from target go <-- --> up and down
+  Node *current = target;
+  FilterData filterD = {0};
+  filterD.type = FILTER_COUNT;
+  filterD.data.fCount.count = 0;
+  filterD.data.fCount.targetCount = 0;
+
+  ModifyData data = {0};
+  data.type = MODIFY_TILETYPE;
+  data.data.tiletype = TILETYPE_BLOCKED;
+
+  while (current != NULL) {
+    current = _kak_get_next_node(grid, current, DIR_LEFT);
+    if (current) {
+      if (filter(current, (void *)&filterD)) {
+        modify(current, (void *)&data);
+        filterD.data.fCount.count = 0;
+      }
+    }
+  }
+
+  return 1;
+}
 
 void render_state_info(int state) {
   // pos of top left
@@ -868,7 +970,10 @@ void input_keys(KakuroContext *ctx) {
       //     current_x--;
       //   }
       // }
-      kak_explore_from_node_until(ctx->grid, locked, NULL, NULL);
+      //
+
+      kak_explore_from_node_until(
+          ctx->grid, locked, _node_filter_non_empty_count, _modify_nodetype_to);
     }
   }
 }
@@ -1080,113 +1185,6 @@ Node *kak_lock_correct_tiles(arr_Nodes *nodes) {
     }
   }
   return NULL;
-}
-
-typedef enum { DIR_UP, DIR_DOWN, DIR_LEFT, DIR_RIGHT } Direction;
-
-static Node *_kak_get_next_node(arr_Nodes *grid, Node *current,
-                                Direction direction) {
-
-  uint8_t x = current->pos.x;
-  uint8_t y = current->pos.y;
-  Node *node = NULL;
-  switch (direction) {
-  case DIR_UP: {
-    node = arr_nodes_get(grid, x, y - 1);
-
-  } break;
-  case DIR_DOWN: {
-    node = arr_nodes_get(grid, x, y + 1);
-
-  } break;
-  case DIR_LEFT: {
-    node = arr_nodes_get(grid, x - 1, y);
-  } break;
-  case DIR_RIGHT: {
-    node = arr_nodes_get(grid, x + 1, y);
-
-  } break;
-  default: {
-    nob_log(NOB_WARNING, "????");
-  }
-  }
-
-  if (node == NULL) {
-    nob_log(NOB_WARNING, "Tried getting node out of bounds");
-    return NULL;
-  } else {
-    return node;
-  }
-}
-
-static int _node_filter_non_empty_count(const Node *node, void *userdata) {
-  FilterData *filter = (FilterData *)userdata;
-
-  if (!filter) {
-    return -1;
-  }
-
-  if (filter->type == FILTER_COUNT) {
-    if (filter->data.fCount.targetCount == filter->data.fCount.count) {
-      return 1;
-    }
-
-    if (node->type == TILETYPE_EMPTY) {
-      filter->data.fCount.count++;
-    }
-  }
-  return 0;
-}
-
-static int _modify_nodetype_to(Node *node, void *userdata) {
-  ModifyData *data = (ModifyData *)userdata;
-  if (!data) {
-    nob_log(NOB_WARNING, "Tried to modify node with invalid data");
-    return -1;
-  }
-
-  if (data->type != MODIFY_TILETYPE) {
-    nob_log(NOB_WARNING, "Tried to modify node with wrong data");
-    return -1;
-  }
-
-  nob_log(NOB_INFO, "Modifying node x:%hhu, y:%hhu", node->pos.x, node->pos.y);
-  node->type = data->data.type;
-  return 1;
-}
-
-int kak_explore_from_node_until(arr_Nodes *grid, Node *target,
-                                NodeFilterFn filter, NodeModifyFn *modify) {
-  // Explores surrounding nodes to the supplied node
-  // until specified tiletype is found
-  // uses callback on each node
-
-  // from target go <-- --> up and down
-  Node *current = target;
-  FilterData filterD = {0};
-  filterD.type = FILTER_COUNT;
-  filterD.data.fCount.count = 0;
-  filterD.data.fCount.targetCount = 2;
-
-  while (current != NULL) {
-    current = _kak_get_next_node(grid, current, DIR_LEFT);
-    if (current) {
-      printf("Got next node x:%hhu, y:%hhu\n", current->pos.x, current->pos.y);
-      if (_node_filter_non_empty_count(current, (void *)&filterD)) {
-        printf("filter hit non empty x:%hhu, y:%hhu\n", current->pos.x,
-               current->pos.y);
-        ModifyData data = {0};
-        data.type = MODIFY_TILETYPE;
-        data.data.type = TILETYPE_BLOCKED;
-        _modify_nodetype_to(current, (void *)&data);
-        printf("filter data count:%zu , target:%zu\n",
-               filterD.data.fCount.count, filterD.data.fCount.targetCount);
-        filterD.data.fCount.count = 0;
-      }
-    }
-  }
-
-  return 1;
 }
 
 static arr_uint8_t_2d *

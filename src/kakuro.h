@@ -190,13 +190,18 @@ typedef int (*NodeFilterFn)(const Node *node, void *userdata);
 // modifies node. returns -1 if tried to modify invalid node?
 typedef int (*NodeModifyFn)(Node *node, void *userdata);
 
+typedef struct {
+  NodeModifyFn fn;
+  void *data;
+} ModifyCb;
+
 typedef enum {
   MODIFY_TILETYPE,
 } ModifyDataType;
 typedef struct {
   ModifyDataType type;
   union {
-    TileType type;
+    TileType tiletype;
   } data;
 } ModifyData;
 
@@ -204,7 +209,7 @@ typedef struct {
 // until specified tiletype is found
 // uses modify on each node
 int kak_explore_from_node_until(arr_Nodes *grid, Node *target,
-                                NodeFilterFn filter, NodeModifyFn *modify);
+                                NodeFilterFn filter, NodeModifyFn modify);
 
 Vector2 text_calculate_position(const Rectangle *rect, Font font,
                                 float fontsize, char *buf);
