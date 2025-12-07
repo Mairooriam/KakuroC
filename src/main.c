@@ -32,6 +32,7 @@ int main(void) {
   // Context init
   KakuroContext ctx = {0};
   ctx.Cursor_tile.tile = node_create((Vec2u8){0, 0}, TILETYPE_CURSOR, 0, 0);
+  ctx.Cursor_tile.sight = arr_Vec2u8_create(100);
   ctx.state = APP_STATE_NONE;
   Camera2D camera = {0};
   camera.zoom = 1.0f;
@@ -40,6 +41,7 @@ int main(void) {
   ctx.size = 50;
   ctx.grid = grid;
   ctx.combination_map = ht_create();
+  ctx.possible_sums_per_count = arr_uint8_t_2d_create(10);
 
   arr_nodes_serialize("test.txt", grid);
   // TODO: fix leak
@@ -52,7 +54,7 @@ int main(void) {
   arr_nodes_deserialize("savefile.txt", ctx.grid);
 
   // Calculate count sum combinations
-  cache_possible_sums(ctx.combination_map);
+  cache_possible_sums(ctx.combination_map, ctx.possible_sums_per_count);
 
   // check clue tiles
   clue_tile_45_checker(ctx.grid);
@@ -75,7 +77,8 @@ int main(void) {
     ClearBackground(RAYWHITE);
     DrawText("Hello, World!", 190, 200, 20, LIGHTGRAY);
     render_grid(ctx.grid, ctx.margin, ctx.size);
-    render_node(ctx.Cursor_tile.tile, ctx.margin, ctx.size);
+    render_node(ctx.Cursor_tile.tile, ctx.margin, ctx.size,
+                (void *)&ctx.Cursor_tile);
     render_state_info(ctx.state);
 
     EndMode2D();

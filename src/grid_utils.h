@@ -2,6 +2,10 @@
 #include "kakuro.h"
 #include "raylib.h"
 #include <stdint.h>
+
+// Got little bit overboard and spent too much time so dont want
+// to just scrap it so i will keep using it :))))
+
 // filter function signature
 // -1 invalid userdata, 0 filter false, >= 1 true
 typedef struct Node Node;
@@ -26,33 +30,27 @@ int kak_explore_from_node_until(arr_Nodes *grid, Node *target, FilterCb filter,
 // Executes modify on each time it hits filter
 int kak_explore_from_node_on_each(arr_Nodes *grid, Node *target,
                                   FilterCb filter, ModifyCb modify);
+
+// Executes modify on hitting filter. does for each node in grid
+int kak_iterate_grid_do_on_filter(arr_Nodes *grid, FilterCb filter,
+                                  ModifyCb modify);
 //
 // FILTERS
 //
-typedef enum {
-  FILTER_NO_USER_DATA,
-  FILTER_COUNT,
-  FILTER_TILETYPE,
-} FilterType;
-
 typedef struct {
   size_t count;
   size_t targetCount;
 } FilterData_count;
 int filter_non_empty_count(const Node *node, void *data);
+FilterCb filter_cb_by_non_empty_count(size_t targetCount);
 
 typedef struct {
-  TileType tiletype;
+  uint32_t tiletype_mask;
 } FilterData_tiletype;
-int filter_tiletype(const Node *node, void *data);
 
-typedef struct {
-  FilterType type;
-  union {
-    FilterData_count fCount;
-    FilterData_tiletype tiletype;
-  } data;
-} FilterData;
+int filter_by_tiletype(const Node *node, void *data);
+uint32_t tiletype_mask(TileType first, ...);
+FilterCb filter_cb_by_tiletype(TileType tiletype);
 
 //
 // MODIFY
@@ -63,7 +61,6 @@ typedef enum {
   MODIFY_NODE_FIELD
 } ModifyDataType;
 typedef struct {
-
   TileType tiletype;
 } ModifyData_tiletype;
 int modify_nodetype_to(Node *node, void *userdata);
@@ -72,6 +69,10 @@ typedef struct {
   uint8_t value;
 } ModifyData_nodevalue;
 int modify_node_values(Node *node, void *userdata);
+typedef struct {
+  CursorNode *cursor;
+} ModifyData_cursor_sight;
+int modify_cursor_sight(Node *node, void *userdata);
 
 typedef struct {
   Node node;
@@ -88,13 +89,10 @@ typedef struct {
 #define NODE_FIELD_X_COUNT (1 << 7)
 #define NODE_FIELD_Y_COUNT (1 << 8)
 #define NODE_FIELD_COLOR (1 << 9)
-int ModifyData_node_field(Node *node, void *userdata);
+int Modify_node_field(Node *node, void *userdata);
 
-typedef struct {
-  ModifyDataType type;
-  union {
-    ModifyData_tiletype t;
-    ModifyData_nodevalue value;
-    ModifyData_nodeField f;
-  } data;
-} ModifyData;
+// Helpers
+ModifyCb modify_cb_node_color(Color color);
+ModifyCb modify_cb_node_values(uint8_t value);
+ModifyCb modify_cb_cursor_sight(CursorNode *node);
+ModifyCb modify_cb_node_tiletype(TileType type);

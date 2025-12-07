@@ -55,7 +55,16 @@ typedef struct {
   uint8_t y;
 } Vec2u8;
 
+size_t Vec2u8_to_string(char *buf, size_t bufsize, const Vec2u8 *arr);
 Vec2u8 Vec2u8_add(Vec2u8 v1, Vec2u8 v2);
+
+typedef struct {
+  Vec2u8 *items;
+  size_t count;
+  size_t capacity;
+} arr_Vec2u8;
+arr_Vec2u8 *arr_Vec2u8_create(size_t initial_capacity);
+size_t arr_Vec2u8_to_string(char *buf, size_t bufsize, const arr_Vec2u8 *arr);
 
 // TODO: create color macros?
 typedef struct {
@@ -84,7 +93,7 @@ static Color node_get_default_color(TileType type) {
   case TILETYPE_CLUE:
     return (Color){25, 25, 25, 100};
   case TILETYPE_CURSOR:
-    return PINK;
+    return (Color){200, 0, 200, 100};
   default:
     return BLACK; // Fallback
   }
@@ -120,6 +129,7 @@ typedef struct {
   size_t count;
   size_t capacity;
 } arr_uint8_t_2d;
+arr_uint8_t_2d *arr_uint8_t_2d_create(size_t initial_capacity);
 size_t arr_uint8_t_2d_to_string(char *buf, size_t bufsize, arr_uint8_t_2d *arr);
 
 // TODO: make union for clue and empty node? to separate fields a bit
@@ -167,7 +177,8 @@ Node *arr_nodes_get(const arr_Nodes *arr, size_t x, size_t y);
 
 // KAKURO
 void render_grid(const arr_Nodes *arr, int margin, int size);
-void render_node(const Node *node, int margin, int size);
+// TODO: for now nodeData lazy
+void render_node(const Node *node, int margin, int size, void *nodeData);
 void render_state_info(int state);
 
 void clue_tile_45_checker(arr_Nodes *n);
@@ -177,7 +188,8 @@ void clue_calculate_possible_values(arr_Nodes *arr, size_t x, size_t y);
 void clue_set_all_empty_sums(
     arr_Nodes *arr); // TODO: implement hashset and use hash of the clue nopdes
                      // instead of iterating trough all
-void cache_possible_sums(ht *combination_map);
+void cache_possible_sums(ht *combination_map,
+                         arr_uint8_t_2d *possible_sums_per_count);
 Node *kak_get_node_under_cursor_tile(const arr_Nodes *arr, const Node *cursor);
 
 // returns count of locked tiles
@@ -189,6 +201,7 @@ Vector2 text_calculate_position(const Rectangle *rect, Font font,
 typedef struct {
   Node *tile;
   bool moved;
+  arr_Vec2u8 *sight;
 } CursorNode;
 
 // Context
@@ -201,6 +214,7 @@ typedef struct {
   int margin;
   int size;
   ht *combination_map;
+  arr_uint8_t_2d *possible_sums_per_count;
 
 } KakuroContext;
 
@@ -220,3 +234,4 @@ void populate_possible_sums_for_empty_tiles(ht *combination_map,
 void print_binary_stdout(unsigned int number);
 
 void shoot_ray_to_mouse_from_cursor_tile(KakuroContext *ctx);
+uint8_t get_random_sum_for_count(arr_uint8_t_2d *sums_for_count, uint8_t count);

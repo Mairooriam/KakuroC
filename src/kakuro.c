@@ -218,8 +218,45 @@ arr_Nodes *arr_nodes_create(size_t x_dimension, size_t y_dimension) {
 Vec2f Vec2f_add(Vec2f v1, Vec2f v2) {
   return (Vec2f){v1.x + v2.x, v1.y + v2.y};
 }
+size_t Vec2u8_to_string(char *buf, size_t bufsize, const Vec2u8 *arr) {
+  size_t written = 0;
+  written +=
+      snprintf(buf + written, bufsize - written, "(%hhu,%hhu)", arr->x, arr->y);
+
+  return written;
+}
 Vec2u8 Vec2u8_add(Vec2u8 v1, Vec2u8 v2) {
   return (Vec2u8){v1.x + v2.x, v1.y + v2.y};
+}
+arr_Vec2u8 *arr_Vec2u8_create(size_t initial_capacity) {
+  arr_Vec2u8 *arr = malloc(sizeof(arr_Vec2u8));
+  arr->capacity = initial_capacity;
+  if (!arr) {
+    printf("Failed to allocate arr_Vec2u8 struct\n");
+    return NULL;
+  }
+
+  arr->count = 0;
+  arr->capacity = initial_capacity;
+  arr->items = malloc(sizeof(Vec2u8) * initial_capacity);
+
+  if (!arr->items) {
+    printf("Failed to allocate data array\n");
+    free(arr);
+    return NULL;
+  }
+
+  return arr;
+}
+size_t arr_Vec2u8_to_string(char *buf, size_t bufsize, const arr_Vec2u8 *arr) {
+  size_t written = 0;
+  written += snprintf(buf + written, bufsize - written, "[");
+  for (size_t i = 0; i < arr->count; i++) {
+    written +=
+        Vec2u8_to_string(buf + written, bufsize - written, &arr->items[i]);
+  }
+  written += snprintf(buf + written, bufsize - written, "]");
+  return written;
 }
 Color Coloru8_to_raylib(Coloru8 c) { return (Color){c.r, c.g, c.b, c.a}; }
 #ifdef ANIMATED
@@ -248,7 +285,7 @@ void render_grid(const arr_Nodes *arr, int margin, int size) {
 #endif /* ifdef ANIMATED */
         Node *n = arr->items[index];
 
-        render_node(n, margin, size);
+        render_node(n, margin, size, NULL);
 #ifdef ANIMATED
       }
       if (animation_index >= (x_dimension * y_dimension)) {
@@ -261,7 +298,7 @@ void render_grid(const arr_Nodes *arr, int margin, int size) {
 
 // TODO: implement this for text
 // raylib [text] example - rectangle bounds
-void render_node(const Node *n, int margin, int size) {
+void render_node(const Node *n, int margin, int size, void *nodeData) {
   // TODO: change units into floats?
   int screen_x = (int)n->pos.x * (size + margin);
   int screen_y = (int)n->pos.y * (size + margin);
@@ -373,7 +410,16 @@ void render_node(const Node *n, int margin, int size) {
   } break;
   case TILETYPE_CURSOR: {
     DrawRectangleRec(rect, n->color);
+    CursorNode *cursor = (CursorNode *)nodeData;
 
+    for (size_t i = 0; i < cursor->sight->count; i++) {
+      Vec2u8 pos = cursor->sight->items[i];
+      int screen_x = (int)pos.x * (size + margin);
+      int screen_y = (int)pos.y * (size + margin);
+
+      Rectangle rect = (Rectangle){screen_x, screen_y, size, size};
+      DrawRectangleRec(rect, (Color){0, 255, 0, 100});
+    }
   } break;
   }
 }
@@ -599,6 +645,10 @@ size_t arr_uint8_t_sum(const arr_uint8_t *arr) {
   return sum;
 }
 int arr_uint8_t_contains(const arr_uint8_t *arr, uint8_t val) {
+  if (!arr) {
+    return -1;
+  }
+
   for (size_t i = 0; i < arr->count; i++) {
     if (arr->items[i] == val) {
       return i;
@@ -620,6 +670,20 @@ arr_uint8_t_compare_and_return_if_both_not_0(const arr_uint8_t *arr1,
     }
   }
   return t_arr;
+}
+arr_uint8_t_2d *arr_uint8_t_2d_create(size_t initial_capacity) {
+  arr_uint8_t_2d *arr = malloc(sizeof(arr_uint8_t_2d));
+  if (!arr)
+    return NULL;
+  arr->count = 0;
+  arr->capacity = initial_capacity;
+  arr->items = malloc(sizeof(arr_uint8_t *) * initial_capacity);
+  if (!arr->items) {
+    free(arr);
+    return NULL;
+  }
+  memset(arr->items, 0, sizeof(arr_uint8_t *) * initial_capacity);
+  return arr;
 }
 size_t arr_uint8_t_2d_to_string(char *buf, size_t bufsize,
                                 arr_uint8_t_2d *arr) {
@@ -806,7 +870,7 @@ void input_keys(KakuroContext *ctx) {
   if (IsKeyReleased(KEY_E)) {
     // clue_calculate_possible_values(ctx->grid, cursor->pos.x, cursor->pos.y);
     if (ctx->combination_map->count == 0) {
-      cache_possible_sums(ctx->combination_map);
+      cache_possible_sums(ctx->combination_map, ctx->possible_sums_per_count);
     } else {
       for (size_t i = 0; i < ctx->combination_map->capacity; i++) {
         uint16_t key = ctx->combination_map->entries[i].key;
@@ -840,25 +904,40 @@ void input_keys(KakuroContext *ctx) {
     printf("Populating possible");
     populate_possible_sums_for_empty_tiles(ctx->combination_map, ctx);
     Node *locked = kak_lock_correct_tiles(ctx->grid);
-    // TODO: Do i want to rework my node to point to clue and clue handle the
-    // updating of values?
     if (locked) {
-      ModifyData data = {0};
-      data.type = MODIFY_NODE_VALUES;
-      data.data.value.value = locked->values->items[0];
-      ModifyCb modify = {0};
-      modify.fn = modify_node_values;
-      modify.data = (void *)&data;
+      ModifyCb modify = modify_cb_node_values(locked->values->items[0]);
+      uint32_t mask = tiletype_mask(TILETYPE_CLUE, -1);
+      FilterCb filter = filter_cb_by_tiletype(mask);
 
-      FilterData filterD = {0};
-      filterD.type = FILTER_TILETYPE;
-      filterD.data.tiletype.tiletype = TILETYPE_CLUE;
-      FilterCb filter = {0};
-      filter.fn = filter_tiletype;
-      filter.data = (void *)&filterD;
-
-      // explores grid and uses modify function according to filter function
+      // Explore grid and use modify function according to filter function
       kak_explore_from_node_until(ctx->grid, locked, filter, modify);
+
+      free(modify.data);
+      free(filter.data);
+    } else {
+      // TODO: decide on how to place clue!?
+      //  1st try randomly
+      //  look for clue that has no sum.
+      //  Place sum accroding to empty fields for it and rerun.
+      //
+      // TODO: currently iterating whole grid. in future use cache of clues?
+      nob_da_foreach(Node *, it, ctx->grid) {
+        Node *n = (*it);
+        if (n->type != TILETYPE_CLUE) {
+          continue;
+        }
+        // TODO: add n->sum_x == 0 && right_node_empty()
+        if (n->sum_x == 0) {
+          uint8_t sum = get_random_sum_for_count(ctx->possible_sums_per_count,
+                                                 n->x_empty_count);
+          printf("Got random sum %hhu\n", sum);
+          if (n->x_empty_count != 0) {
+            n->sum_x = sum;
+            break;
+          }
+        }
+      }
+      printf("Not correct tile found placing clue\n");
     }
   }
 }
@@ -898,11 +977,6 @@ void input_mouse(KakuroContext *ctx) {
     camera->zoom = Clamp(expf(logf(camera->zoom) + scale), 0.125f, 256.0f);
     printf("camera zoom: %f\n", camera->zoom);
   }
-}
-
-void app_update(KakuroContext *ctx) {
-  (void)ctx;
-  printf("UPDATE NOT IMPLEMENTED");
 }
 
 void clue_calculate_possible_values(arr_Nodes *arr, size_t x, size_t y) {
@@ -990,7 +1064,8 @@ void print_binary_stdout(unsigned int number) {
   putc((number & 1) ? '1' : '0', stdout);
 }
 
-void cache_possible_sums(ht *combination_map) {
+void cache_possible_sums(ht *combination_map,
+                         arr_uint8_t_2d *possible_sums_per_count) {
   if (!combination_map) {
     nob_log(NOB_ERROR, "Map supplied is NULL");
   }
@@ -1032,12 +1107,30 @@ void cache_possible_sums(ht *combination_map) {
           existing->count = 0;
           existing->capacity = 16;
           ht_set(combination_map, key, (void *)existing);
+
+          // populate possible sums at the sametime
+          if (!possible_sums_per_count->items[count]) {
+            possible_sums_per_count->items[count] = arr_uint8_t_create(16);
+          }
+          if (arr_uint8_t_contains(possible_sums_per_count->items[count],
+                                   sum) == -1) {
+            nob_da_append(possible_sums_per_count->items[count], sum);
+          }
         }
         nob_da_append(existing, subset);
       }
     }
   }
-
+  printf("possible sums per count: \n");
+  for (size_t c = 2; c <= 9; c++) {
+    if (possible_sums_per_count->items[c]) {
+      printf("Count %zu sums: ", c);
+      for (size_t i = 0; i < possible_sums_per_count->items[c]->count; i++) {
+        printf("%hhu ", possible_sums_per_count->items[c]->items[i]);
+      }
+      printf("\n");
+    }
+  }
   printf("Combination Map Contents:\n");
   for (size_t i = 0; i < combination_map->capacity; i++) {
     uint16_t key = combination_map->entries[i].key;
@@ -1065,8 +1158,11 @@ Node *kak_lock_correct_tiles(arr_Nodes *nodes) {
   // TODO: cache of empty nodes
   nob_da_foreach(Node *, it, nodes) {
     if ((*it)->values->count == 1) {
-      (*it)->type = TILETYPE_EMPTY_VALID;
-      return (*it);
+      if ((*it)->type != TILETYPE_EMPTY_VALID) {
+        (*it)->type = TILETYPE_EMPTY_VALID;
+        (*it)->color = (Color){0, 150, 0, 100};
+        return (*it);
+      }
     }
   }
   return NULL;
@@ -1216,21 +1312,34 @@ void shoot_ray_to_mouse_from_cursor_tile(KakuroContext *ctx) {
   (void)ctx;
   // TODO: do tihs haha ihihih
 }
-
+uint8_t get_random_sum_for_count(arr_uint8_t_2d *sums_for_count,
+                                 uint8_t count) {
+  if (sums_for_count->items[count] && sums_for_count->items[count]->count > 0) {
+    size_t random_index = rand() % sums_for_count->items[count]->count;
+    return sums_for_count->items[count]->items[random_index];
+  }
+  return 0;
+}
 void update_process(KakuroContext *ctx) {
   if (ctx->Cursor_tile.moved) {
-    ModifyData_nodeField field_data = {.node = {.color = RED, .id = 42},
-                                       .flags =
-                                           NODE_FIELD_COLOR | NODE_FIELD_ID};
-    ModifyData mData = {.type = MODIFY_NODE_FIELD, .data.f = field_data};
-    ModifyCb modify = {.fn = ModifyData_node_field, .data = (void *)&mData};
-
-    FilterData_tiletype tileData = {.tiletype = TILETYPE_CLUE};
-    FilterData fData = {.data.tiletype = tileData, .type = FILTER_TILETYPE};
-    FilterCb filter = {.fn = filter_tiletype, .data = (void *)&fData};
-
+    // TODO: bad to malloc each tie moved?
+    // ModifyCb modify = modify_cb_node_color(RED);
+    // TODO: how to reset sight properly does tihs create leak?
+    ctx->Cursor_tile.sight->count = 0;
+    ModifyCb modify = modify_cb_cursor_sight(&ctx->Cursor_tile);
+    uint32_t mask = tiletype_mask(TILETYPE_CLUE, TILETYPE_BLOCKED, -1);
+    FilterCb filter = filter_cb_by_tiletype(mask);
+    // FilterCb filter = filter_cb_by_non_empty_count(2);
     kak_explore_from_node_until(ctx->grid, ctx->Cursor_tile.tile, filter,
                                 modify);
+    // kak_explore_from_node_until(ctx->grid, ctx->Cursor_tile.tile, filter,
+    //                             modify);
+    char buf[1024];
+    arr_Vec2u8_to_string(buf, 1024, ctx->Cursor_tile.sight);
+    printf("sight %s\n", buf);
+
+    free(modify.data);
+    free(filter.data);
     ctx->Cursor_tile.moved = false;
   }
 }
