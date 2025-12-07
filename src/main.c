@@ -31,8 +31,7 @@ int main(void) {
 
   // Context init
   KakuroContext ctx = {0};
-  ctx.Cursor_tile.tile = node_create((Vec2u8){0, 0}, TILETYPE_CURSOR, 0, 0,
-                                     (Color){100, 100, 0, 100});
+  ctx.Cursor_tile.tile = node_create((Vec2u8){0, 0}, TILETYPE_CURSOR, 0, 0);
   ctx.state = APP_STATE_NONE;
   Camera2D camera = {0};
   camera.zoom = 1.0f;

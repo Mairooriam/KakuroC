@@ -75,6 +75,21 @@ typedef enum {
   TILETYPE_EMPTY_VALID // Valid number accroding to clues
 } TileType;
 
+static Color node_get_default_color(TileType type) {
+  switch (type) {
+  case TILETYPE_EMPTY:
+    return (Color){100, 0, 0, 100};
+  case TILETYPE_BLOCKED:
+    return BLACK;
+  case TILETYPE_CLUE:
+    return (Color){25, 25, 25, 100};
+  case TILETYPE_CURSOR:
+    return PINK;
+  default:
+    return BLACK; // Fallback
+  }
+}
+
 typedef enum {
   APP_STATE_NONE,
   APP_STATE_X_SUM,
@@ -127,8 +142,7 @@ typedef struct Node {
   Color color;
 } Node;
 // TODO: add freeing of node
-Node *node_create(Vec2u8 pos, TileType type, uint8_t sum_x, uint8_t sum_y,
-                  Color color);
+Node *node_create(Vec2u8 pos, TileType type, uint8_t sum_x, uint8_t sum_y);
 Node *node_create_empty(Vec2u8 pos);
 Node *node_create_clue(Vec2u8 pos, uint8_t sum_x, uint8_t sum_y);
 Node *node_create_blocked(Vec2u8 pos);

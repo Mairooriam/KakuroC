@@ -11,8 +11,8 @@
 
 #define NOB_IMPLEMENTATION
 #include "nob.h"
-Node *node_create(Vec2u8 pos, TileType type, uint8_t sum_x, uint8_t sum_y,
-                  Color color) {
+
+Node *node_create(Vec2u8 pos, TileType type, uint8_t sum_x, uint8_t sum_y) {
   Node *node = malloc(sizeof(Node));
   if (!node)
     return NULL;
@@ -24,20 +24,20 @@ Node *node_create(Vec2u8 pos, TileType type, uint8_t sum_x, uint8_t sum_y,
   node->sum_y = sum_y;
   node->x_empty_count = 0;
   node->y_empty_count = 0;
-  node->color = color;
+  node->color = node_get_default_color(type);
+
   return node;
 }
 
 Node *node_create_empty(Vec2u8 pos) {
-  return node_create(pos, TILETYPE_EMPTY, 0, 0, (Color){100, 0, 0, 100});
+  return node_create(pos, TILETYPE_EMPTY, 0, 0);
 }
 Node *node_create_clue(Vec2u8 pos, uint8_t sum_x, uint8_t sum_y) {
-  return node_create(pos, TILETYPE_CLUE, sum_x, sum_y,
-                     (Color){25, 25, 25, 100});
+  return node_create(pos, TILETYPE_CLUE, sum_x, sum_y);
 }
 
 Node *node_create_blocked(Vec2u8 pos) {
-  return node_create(pos, TILETYPE_BLOCKED, 0, 0, (Color){0, 0, 0, 0});
+  return node_create(pos, TILETYPE_BLOCKED, 0, 0);
 }
 
 size_t node_to_string(char *buf, size_t bufsize, const Node *n) {
@@ -165,7 +165,7 @@ int arr_nodes_deserialize(const char *path, arr_Nodes *n) {
         printf("Parsed y_empty_count = %hhu\n", tmpNode.y_empty_count);
 
         Node *node = node_create(tmpNode.pos, tmpNode.type, tmpNode.sum_x,
-                                 tmpNode.sum_y, (Color){0, 0, 0, 0});
+                                 tmpNode.sum_y);
         if (node) {
           arr_nodes_add(n, node);
           printf("Added node to array\n");
@@ -852,7 +852,7 @@ void input_keys(KakuroContext *ctx) {
 
       FilterData filterD = {0};
       filterD.type = FILTER_TILETYPE;
-      filterD.data.tiletype = TILETYPE_CLUE;
+      filterD.data.tiletype.tiletype = TILETYPE_CLUE;
       FilterCb filter = {0};
       filter.fn = filter_tiletype;
       filter.data = (void *)&filterD;
@@ -1225,7 +1225,8 @@ void update_process(KakuroContext *ctx) {
     ModifyData mData = {.type = MODIFY_NODE_FIELD, .data.f = field_data};
     ModifyCb modify = {.fn = ModifyData_node_field, .data = (void *)&mData};
 
-    FilterData_tiletype fData = {.tiletype = TILETYPE_EMPTY};
+    FilterData_tiletype tileData = {.tiletype = TILETYPE_CLUE};
+    FilterData fData = {.data.tiletype = tileData, .type = FILTER_TILETYPE};
     FilterCb filter = {.fn = filter_tiletype, .data = (void *)&fData};
 
     kak_explore_from_node_until(ctx->grid, ctx->Cursor_tile.tile, filter,

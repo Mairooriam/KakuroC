@@ -66,7 +66,7 @@ int filter_tiletype(const Node *node, void *userdata) {
 
   if (filter->type == FILTER_TILETYPE) {
 
-    if (node->type == filter->data.tiletype) {
+    if (node->type == filter->data.tiletype.tiletype) {
       return 1;
     }
   }

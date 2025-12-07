@@ -50,7 +50,7 @@ typedef struct {
   FilterType type;
   union {
     FilterData_count fCount;
-    TileType tiletype;
+    FilterData_tiletype tiletype;
   } data;
 } FilterData;
 
@@ -75,19 +75,19 @@ int modify_node_values(Node *node, void *userdata);
 
 typedef struct {
   Node node;
-  uint32_t flags;  
+  uint32_t flags;
 } ModifyData_nodeField;
 
-#define NODE_FIELD_POS         (1 << 0)
-#define NODE_FIELD_TYPE        (1 << 1)
-#define NODE_FIELD_VALUES      (1 << 2)
+#define NODE_FIELD_POS (1 << 0)
+#define NODE_FIELD_TYPE (1 << 1)
+#define NODE_FIELD_VALUES (1 << 2)
 #define NODE_FIELD_CLUE_VALUES (1 << 3)
-#define NODE_FIELD_ID          (1 << 4)
-#define NODE_FIELD_SUM_Y       (1 << 5)
-#define NODE_FIELD_SUM_X       (1 << 6)
-#define NODE_FIELD_X_COUNT     (1 << 7)
-#define NODE_FIELD_Y_COUNT     (1 << 8)
-#define NODE_FIELD_COLOR       (1 << 9)
+#define NODE_FIELD_ID (1 << 4)
+#define NODE_FIELD_SUM_Y (1 << 5)
+#define NODE_FIELD_SUM_X (1 << 6)
+#define NODE_FIELD_X_COUNT (1 << 7)
+#define NODE_FIELD_Y_COUNT (1 << 8)
+#define NODE_FIELD_COLOR (1 << 9)
 int ModifyData_node_field(Node *node, void *userdata);
 
 typedef struct {
