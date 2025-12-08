@@ -138,11 +138,35 @@ int modify_node_values(Node *node, void *userdata) {
     return -1;
   }
 
-  int contains = arr_uint8_t_contains(node->values, data->value);
+  int contains = arr_uint8_t_contains(node->possible_values, data->value);
   if (contains >= 0) {
-    nob_da_remove_unordered(node->values, (size_t)contains);
+    nob_da_remove_unordered(node->possible_values, (size_t)contains);
   }
 
+  return 1;
+}
+int modify_delete_duplicates_possible_values(Node *node, void *userdata) {
+  ModifyData_delete_duplicates *data = (ModifyData_delete_duplicates *)userdata;
+  if (node->pos.x == 10 && node->pos.y == 5)
+  {
+    char buf_before[1024];
+    arr_uint8_t_to_string(buf_before, sizeof(buf_before), node->possible_values);
+    printf("DEBUG: Specific node (10,5) possible values BEFORE removal: %s\n", buf_before);
+    
+    // Debug: Print values being deleted
+    char buf_delete[1024];
+    arr_uint8_t_to_string(buf_delete, sizeof(buf_delete), data->values);
+    printf("DEBUG: Values to delete from (10,5): %s\n", buf_delete);
+  }
+  
+
+  for (size_t i = 0; i < data->values->count; i++) {
+    int contains =
+        arr_uint8_t_contains(node->possible_values, data->values->items[i]);
+    if (contains >= 0) {
+      nob_da_remove_unordered(node->possible_values, (size_t)contains);
+    }
+  }
   return 1;
 }
 int modify_cursor_sight(Node *node, void *userdata) {
@@ -173,7 +197,7 @@ int Modify_node_field(Node *node, void *userdata) {
     assert(0 && "do this when needed");
   }
   if (flags & NODE_FIELD_CLUE_VALUES) {
-    node->clue_possible_values = n.clue_possible_values;
+    node->clue_possible_combinations = n.clue_possible_combinations;
   }
   if (flags & NODE_FIELD_ID) {
     node->id = n.id;
@@ -221,6 +245,17 @@ ModifyCb modify_cb_cursor_sight(CursorNode *node) {
     return (ModifyCb){0};
   data->cursor = node;
   return (ModifyCb){.fn = modify_cursor_sight, .data = data};
+}
+
+ModifyCb modify_cb_delete_duplicates_from_possible_values(
+    arr_uint8_t *values_to_delete) {
+  ModifyData_delete_duplicates *data =
+      malloc(sizeof(ModifyData_delete_duplicates));
+  if (!data)
+    return (ModifyCb){0};
+  data->values = values_to_delete;
+  return (ModifyCb){.fn = modify_delete_duplicates_possible_values,
+                    .data = data};
 }
 
 ModifyCb modify_cb_node_values(uint8_t value) {
@@ -278,8 +313,8 @@ int kak_explore_from_node_until(arr_Nodes *grid, Node *target, FilterCb filter,
   return 1;
 }
 
-int kak_iterate_grid_do_on_filter(arr_Nodes *grid, FilterCb filter,
-                                  ModifyCb modify) {
+int kak_iterate_grid_modify_on_filter(arr_Nodes *grid, FilterCb filter,
+                                      ModifyCb modify) {
   nob_da_foreach(Node *, it, grid) {
     if (filter.fn((*it), filter.data)) {
       modify.fn((*it), modify.data);

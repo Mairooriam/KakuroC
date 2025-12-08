@@ -19,12 +19,14 @@ Node *node_create(Vec2u8 pos, TileType type, uint8_t sum_x, uint8_t sum_y) {
 
   node->pos = pos;
   node->type = type;
-  node->values = arr_uint8_t_create(9);
+  node->possible_values = arr_uint8_t_create(9);
   node->sum_x = sum_x;
   node->sum_y = sum_y;
   node->x_empty_count = 0;
   node->y_empty_count = 0;
   node->color = node_get_default_color(type);
+  node->value = 0;
+  node->clue_possible_combinations = arr_uint8_t_2d_create(9);
 
   return node;
 }
@@ -46,8 +48,17 @@ size_t node_to_string(char *buf, size_t bufsize, const Node *n) {
   written += snprintf(buf + written, bufsize - written, "pos = %i,%i\n",
                       n->pos.x, n->pos.y);
   written += snprintf(buf + written, bufsize - written, "type = %i\n", n->type);
-  written += snprintf(buf + written, bufsize - written, "value = ");
-  written += arr_uint8_t_to_string(buf + written, bufsize - written, n->values);
+  written +=
+      snprintf(buf + written, bufsize - written, "value = %hhu\n", n->value);
+  written += snprintf(buf + written, bufsize - written, "possible_values = ");
+  written += arr_uint8_t_to_string(buf + written, bufsize - written,
+                                   n->possible_values);
+
+  written += snprintf(buf + written, bufsize - written, "\n");
+  written +=
+      snprintf(buf + written, bufsize - written, "possible combinations = ");
+  written += arr_uint8_t_2d_to_string(buf + written, bufsize - written,
+                                      n->clue_possible_combinations);
   written += snprintf(buf + written, bufsize - written, "\n");
 
   written +=
@@ -333,20 +344,23 @@ void render_node(const Node *n, int margin, int size, void *nodeData) {
     char b1[1024] = {0}, b2[1024] = {0}, b3[1024] = {0};
     size_t w1 = 0, w2 = 0, w3 = 0;
 
-    for (size_t i = 0; i < n->values->count; i++) {
+    for (size_t i = 0; i < n->possible_values->count; i++) {
       if (i < 3) { // First line: indices 0, 1, 2
-        w1 += snprintf(b1 + w1, sizeof(b1) - w1, "%hhu", n->values->items[i]);
-        if (i < 2 && i + 1 < n->values->count) {
+        w1 += snprintf(b1 + w1, sizeof(b1) - w1, "%hhu",
+                       n->possible_values->items[i]);
+        if (i < 2 && i + 1 < n->possible_values->count) {
           w1 += snprintf(b1 + w1, sizeof(b1) - w1, ",");
         }
       } else if (i < 6) { // Second line: indices 3, 4, 5
-        w2 += snprintf(b2 + w2, sizeof(b2) - w2, "%hhu", n->values->items[i]);
-        if (i < 5 && i + 1 < n->values->count) {
+        w2 += snprintf(b2 + w2, sizeof(b2) - w2, "%hhu",
+                       n->possible_values->items[i]);
+        if (i < 5 && i + 1 < n->possible_values->count) {
           w2 += snprintf(b2 + w2, sizeof(b2) - w2, ",");
         }
       } else if (i < 9) { // Third line: indices 6, 7, 8
-        w3 += snprintf(b3 + w3, sizeof(b3) - w3, "%hhu", n->values->items[i]);
-        if (i < 8 && i + 1 < n->values->count) {
+        w3 += snprintf(b3 + w3, sizeof(b3) - w3, "%hhu",
+                       n->possible_values->items[i]);
+        if (i < 8 && i + 1 < n->possible_values->count) {
           w3 += snprintf(b3 + w3, sizeof(b3) - w3, ",");
         }
       }
@@ -689,11 +703,14 @@ size_t arr_uint8_t_2d_to_string(char *buf, size_t bufsize,
                                 arr_uint8_t_2d *arr) {
   size_t written = 0;
   written += snprintf(buf + written, bufsize - written, "[");
-  for (size_t i = 0; i < arr->count; i++) {
-    written +=
-        arr_uint8_t_to_string(buf + written, bufsize - written, arr->items[i]);
-    if (i < arr->count - 1) {
-      written += snprintf(buf + written, bufsize - written, ",");
+  if (arr != NULL) {
+
+    for (size_t i = 0; i < arr->count; i++) {
+      written += arr_uint8_t_to_string(buf + written, bufsize - written,
+                                       arr->items[i]);
+      if (i < arr->count - 1) {
+        written += snprintf(buf + written, bufsize - written, ",");
+      }
     }
   }
   written += snprintf(buf + written, bufsize - written, "]");
@@ -849,8 +866,8 @@ void input_keys(KakuroContext *ctx) {
     case TILETYPE_EMPTY: {
       ctx->state = APP_STATE_TYPING;
       Node *node = arr_nodes_get(ctx->grid, cursor->pos.x, cursor->pos.y);
-      if (node->values->count <= 8) {
-        arr_uint8_t_add(node->values, number);
+      if (node->possible_values->count <= 8) {
+        arr_uint8_t_add(node->possible_values, number);
         printf("[INPUT] Added %d to tile (%u, %u)\n", number, cursor->pos.x,
                cursor->pos.y);
       }
@@ -863,7 +880,7 @@ void input_keys(KakuroContext *ctx) {
   if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyReleased(KEY_K)) {
     char buf[1024];
     Node *node = arr_nodes_get(ctx->grid, cursor->pos.x, cursor->pos.y);
-    arr_uint8_t_to_string(buf, 1025, node->values);
+    arr_uint8_t_to_string(buf, 1025, node->possible_values);
     printf("(%hhu,%hhu)values: %s", cursor->pos.x, cursor->pos.y, buf);
   }
 
@@ -905,7 +922,8 @@ void input_keys(KakuroContext *ctx) {
     populate_possible_sums_for_empty_tiles(ctx->combination_map, ctx);
     Node *locked = kak_lock_correct_tiles(ctx->grid);
     if (locked) {
-      ModifyCb modify = modify_cb_node_values(locked->values->items[0]);
+      ModifyCb modify =
+          modify_cb_node_values(locked->possible_values->items[0]);
       uint32_t mask = tiletype_mask(TILETYPE_CLUE, -1);
       FilterCb filter = filter_cb_by_tiletype(mask);
 
@@ -914,6 +932,11 @@ void input_keys(KakuroContext *ctx) {
 
       free(modify.data);
       free(filter.data);
+
+      // TODO: NOT WORKING AT ALL NOT GOOD TERRIBLE DASDASDAGSDG
+      // try one clue -> if after that no new "lockable" node then reset back
+      // and try next clue. if none of the clues lead to ambigious tile select
+      // one? which? fdasfa
     } else {
       // TODO: decide on how to place clue!?
       //  1st try randomly
@@ -921,21 +944,23 @@ void input_keys(KakuroContext *ctx) {
       //  Place sum accroding to empty fields for it and rerun.
       //
       // TODO: currently iterating whole grid. in future use cache of clues?
+      // Commented for testing
       nob_da_foreach(Node *, it, ctx->grid) {
-        Node *n = (*it);
-        if (n->type != TILETYPE_CLUE) {
-          continue;
-        }
-        // TODO: add n->sum_x == 0 && right_node_empty()
-        if (n->sum_x == 0) {
-          uint8_t sum = get_random_sum_for_count(ctx->possible_sums_per_count,
-                                                 n->x_empty_count);
-          printf("Got random sum %hhu\n", sum);
-          if (n->x_empty_count != 0) {
-            n->sum_x = sum;
-            break;
-          }
-        }
+        // Node *n = (*it);
+        // if (n->type != TILETYPE_CLUE) {
+        //   continue;
+        // }
+        // // TODO: add n->sum_x == 0 && right_node_empty()
+        // if (n->sum_x == 0) {
+        //   uint8_t sum =
+        //   get_random_sum_for_count(ctx->possible_sums_per_count,
+        //                                          n->x_empty_count);
+        //   printf("Got random sum %hhu\n", sum);
+        //   if (n->x_empty_count != 0) {
+        //     n->sum_x = sum;
+        //     break;
+        //   }
+        // }
       }
       printf("Not correct tile found placing clue\n");
     }
@@ -1157,11 +1182,13 @@ Node *kak_get_node_under_cursor_tile(const arr_Nodes *arr, const Node *cursor) {
 Node *kak_lock_correct_tiles(arr_Nodes *nodes) {
   // TODO: cache of empty nodes
   nob_da_foreach(Node *, it, nodes) {
-    if ((*it)->values->count == 1) {
-      if ((*it)->type != TILETYPE_EMPTY_VALID) {
-        (*it)->type = TILETYPE_EMPTY_VALID;
-        (*it)->color = (Color){0, 150, 0, 100};
-        return (*it);
+    Node *node = (*it);
+    if (node->possible_values->count == 1) {
+      if (node->type != TILETYPE_EMPTY_VALID) {
+        node->type = TILETYPE_EMPTY_VALID;
+        node->color = (Color){0, 150, 0, 100};
+        node->value = node->possible_values->items[0];
+        return node;
       }
     }
   }
@@ -1179,16 +1206,16 @@ get_possible_sums_from_cache_for_tile(ht *combination_map, Node *n) {
   uint16_t key_x = ((uint16_t)count_x << 8) | sum_x;
   arr_uint8_t_2d *combs_x = (arr_uint8_t_2d *)ht_get(combination_map, key_x);
   if (combs_x == NULL) {
-    nob_log(NOB_WARNING,
-            "Value for count_x: %hhu, sum_x: %hhu doens't exist in the cache",
-            count_x, sum_x);
+    // nob_log(NOB_WARNING,
+    //         "Value for count_x: %hhu, sum_x: %hhu doens't exist in the
+    //         cache", count_x, sum_x);
   } else {
-    printf("Key: %hu (Count: %hhu, Sum: %hhu), Combinations: %zu\n", key_x,
-           count_x, sum_x, combs_x->count);
-    nob_da_foreach(arr_uint8_t *, subset, combs_x) {
-      nob_da_foreach(uint8_t, it, *subset) { printf("%hhu ", (*it)); }
-      printf("\n");
-    }
+    // printf("Key: %hu (Count: %hhu, Sum: %hhu), Combinations: %zu\n", key_x,
+    //        count_x, sum_x, combs_x->count);
+    // nob_da_foreach(arr_uint8_t *, subset, combs_x) {
+    //   // nob_da_foreach(uint8_t, it, *subset) { printf("%hhu ", (*it)); }
+    //   // printf("\n");
+    // }
   }
 
   // FOR Y
@@ -1198,17 +1225,17 @@ get_possible_sums_from_cache_for_tile(ht *combination_map, Node *n) {
   uint16_t key_y = ((uint16_t)count_y << 8) | sum_y;
   arr_uint8_t_2d *combs_y = (arr_uint8_t_2d *)ht_get(combination_map, key_y);
   if (combs_y == NULL) {
-    nob_log(NOB_WARNING,
-            "Value for count_y: %hhu, sum_y: %hhu doens't exist in the cache",
-            count_y, sum_y);
+    // nob_log(NOB_WARNING,
+    //         "Value for count_y: %hhu, sum_y: %hhu doens't exist in the
+    //         cache", count_y, sum_y);
   } else {
-    printf("Key: %hu (Count: %hhu, Sum: %hhu), Combinations: %zu\n", key_y,
-           count_y, sum_y, combs_y->count);
-    // Use nob_da_foreach instead of manual loop
-    nob_da_foreach(arr_uint8_t *, subset, combs_y) {
-      nob_da_foreach(uint8_t, it, *subset) { printf("%hhu ", (*it)); }
-      printf("\n");
-    }
+    // printf("Key: %hu (Count: %hhu, Sum: %hhu), Combinations: %zu\n", key_y,
+    //        count_y, sum_y, combs_y->count);
+    // // Use nob_da_foreach instead of manual loop
+    // nob_da_foreach(arr_uint8_t *, subset, combs_y) {
+    //   nob_da_foreach(uint8_t, it, *subset) { printf("%hhu ", (*it)); }
+    //   printf("\n");
+    // }
   }
 
   // TODO: make array comparing functions
@@ -1238,18 +1265,20 @@ get_possible_sums_from_cache_for_tile(ht *combination_map, Node *n) {
       }
     }
     // TODO: is this shit?
+    //// TODO: Might overflow buffer
+    size_t bufsize = 1024 * 8;
+    char buf[bufsize];
+    arr_uint8_t_2d_to_string(buf, bufsize, arr);
+    nob_log(NOB_INFO, "Node at: x:%hhu,y:%hhu possible values: %s", n->pos.x,
+            n->pos.y, buf);
   } else if (combs_x == NULL && combs_y != NULL) {
     nob_log(NOB_INFO, "combs_x null. returning combs_y");
     return combs_y;
   } else if (combs_x != NULL && combs_y == NULL) {
+    nob_log(NOB_INFO, "combs_x null. returning combs_x");
     return combs_x;
   }
-  size_t bufsize = 1024 * 8;
-  char buf[bufsize];
-  arr_uint8_t_2d_to_string(buf, bufsize, arr);
-  // TODO: Might overflow buffer
-  nob_log(NOB_INFO, "Node at: x:%hhu,y:%hhu possible values: %s\n", n->pos.x,
-          n->pos.y, buf);
+
   return arr;
 }
 
@@ -1262,50 +1291,63 @@ void get_possible_sums_from_cache_for_selected(ht *combination_map,
 
 void populate_possible_sums_for_empty_tiles(ht *combination_map,
                                             KakuroContext *ctx) {
+
+  // TODO: works but loop overrides the removing of duplicates.
+  arr_Nodes *cache = arr_nodes_create(10, 10);
+
   nob_da_foreach(Node *, it1, ctx->grid) {
+    Node *node = (*it1);
+
+    // for now two pass. first get possible sums for each node.
+    // thne later second pass to remove already "placed" values
     arr_uint8_t_2d *arr =
-        get_possible_sums_from_cache_for_tile(combination_map, (*it1));
-    // TODO: use map in future? somethgin esle s? // make get
-    // possible sums from cache for tile that takes in the
-    // node and sets the values on the first iteration the the tinhgfyu
-    if ((*it1)->pos.x == 9 && (*it1)->pos.y == 9) {
-      printf("lol");
-    }
+        get_possible_sums_from_cache_for_tile(combination_map, node);
     if (arr != NULL) {
       arr_uint8_t *uniquearr = arr_uint8_t_create(16);
-      nob_da_foreach(arr_uint8_t *, it2, arr){
-          nob_da_foreach(uint8_t, it3, (*it2)){if ((*it3) == 0){continue;
-    }
-    if (arr_uint8_t_contains(uniquearr, (*it3)) == -1) {
-      nob_da_append(uniquearr, (*it3));
+      nob_da_foreach(arr_uint8_t *, it2, arr) {
+        arr_uint8_t *arr1 = (*it2);
+        nob_da_foreach(uint8_t, it3, arr1) {
+          uint8_t val = (*it3);
+          if (val == 0) {
+            continue;
+          }
+          if (arr_uint8_t_contains(uniquearr, val) == -1) {
+            nob_da_append(uniquearr, val);
+          }
+        }
+      }
+      // TODO: leaks if called multiple times? maybe?
+      // need to also filter according to this nodes row's and columns placed
+      // value
+
+      node->possible_values = uniquearr;
+      if (node->value != 0) {
+        arr_nodes_add(cache, node);
+      }
+
+      // TODO: random buf
+      // char buf[1024];
+      // arr_uint8_t_to_string(buf, 1024, uniquearr);
+      // nob_log(NOB_INFO, "Set x:%hhu,y:%hhu values to: %s", (*it1)->pos.x,
+      //         (*it1)->pos.y, buf);
     }
   }
-}
-// TODO: leaks if called multiple times;
-// TODO: can this formatting be fixed with clang format?
-// 2. Configure Clang-Format Settings
-// The C_Cpp.clang_format_style setting allows you to customize how clang-format
-// handles macros:
-//
-// Show in Settings Editor
-// Key macro-related options you can add:
-//
-// IndentPPDirectives: BeforeHash - Indents preprocessor directives
-// AlignConsecutiveMacros: Consecutive - Aligns consecutive macro definitions
-// MacroBlockBegin: \"^nob_da_foreach\" - Treats your macro as a block start
-// MacroBlockEnd: \"^}\" - Treats closing brace as block end
-(*it1)->values = uniquearr;
-// TODO: random buf
-char buf[1024];
-arr_uint8_t_to_string(buf, 1024, uniquearr);
-if ((*it1)->pos.x == 9 && (*it1)->pos.y == 9) {
-  printf("lol");
-}
+  for (size_t i = 0; i < cache->count; i++) {
 
-nob_log(NOB_INFO, "Set x:%hhu,y:%hhu values to: %s", (*it1)->pos.x,
-        (*it1)->pos.y, buf);
-}
-}
+    ModifyCb modify = modify_cb_delete_duplicates_from_possible_values(
+        cache->items[i]->possible_values);
+    uint32_t mask = tiletype_mask(TILETYPE_CLUE, -1);
+    FilterCb filter = filter_cb_by_tiletype(mask);
+
+    // Explore grid and use modify function according to filter function
+    kak_explore_from_node_until(ctx->grid, cache->items[i], filter, modify);
+
+    free(modify.data);
+    free(filter.data);
+    // printf("Node(%hhu,%hhu) value not 0\n\n\n\n\n\n", node->pos.x,
+    // node->pos.y);
+  }
+  free(cache);
 }
 
 void shoot_ray_to_mouse_from_cursor_tile(KakuroContext *ctx) {

@@ -55,11 +55,6 @@ FilterCb filter_cb_by_tiletype(TileType tiletype);
 //
 // MODIFY
 //
-typedef enum {
-  MODIFY_TILETYPE,
-  MODIFY_NODE_VALUES,
-  MODIFY_NODE_FIELD
-} ModifyDataType;
 typedef struct {
   TileType tiletype;
 } ModifyData_tiletype;
@@ -73,6 +68,10 @@ typedef struct {
   CursorNode *cursor;
 } ModifyData_cursor_sight;
 int modify_cursor_sight(Node *node, void *userdata);
+typedef struct {
+  arr_uint8_t *values; // values to not be duplicated
+} ModifyData_delete_duplicates;
+int modify_delete_duplicates_possible_values(Node *node, void *userdata);
 
 typedef struct {
   Node node;
@@ -96,3 +95,4 @@ ModifyCb modify_cb_node_color(Color color);
 ModifyCb modify_cb_node_values(uint8_t value);
 ModifyCb modify_cb_cursor_sight(CursorNode *node);
 ModifyCb modify_cb_node_tiletype(TileType type);
+ModifyCb modify_cb_delete_duplicates_from_possible_values(arr_uint8_t *arr);

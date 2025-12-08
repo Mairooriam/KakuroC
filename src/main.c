@@ -16,7 +16,7 @@ int main(void) {
 
   // Grid INIT
   arr_Nodes *grid = arr_nodes_create(11, 11);
-  size_t bufsize = 1024 * 15;
+  size_t bufsize = 1024 * 50;
   char buf[bufsize];
   memset(buf, 0, bufsize);
   for (size_t y = 0; y < grid->x_dimension; y++) {
@@ -26,8 +26,8 @@ int main(void) {
     }
   }
   printf("Printing nodes: \n");
-  arr_nodes_to_string(buf, bufsize, grid);
-  printf("nodes: \n%s", buf);
+  // arr_nodes_to_string(buf, bufsize, grid);
+  // printf("nodes: \n%s", buf);
 
   // Context init
   KakuroContext ctx = {0};

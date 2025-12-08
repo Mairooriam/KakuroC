@@ -139,8 +139,9 @@ typedef struct Node {
   // Node *clue_y; // TODO: separate empty and clue fields or do i evne want
   // this?
   TileType type;
-  arr_uint8_t *values; // value of cell
-  arr_uint8_t **clue_possible_values;
+  uint8_t value;
+  arr_uint8_t *possible_values; // possible values for cell
+  arr_uint8_t_2d *clue_possible_combinations;
   int id;
   // TODO: make sums into vec2u8?
   // TODO: make data union and if it is type clue it has sums and if empty it
