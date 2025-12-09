@@ -147,18 +147,18 @@ int modify_node_values(Node *node, void *userdata) {
 }
 int modify_delete_duplicates_possible_values(Node *node, void *userdata) {
   ModifyData_delete_duplicates *data = (ModifyData_delete_duplicates *)userdata;
-  if (node->pos.x == 10 && node->pos.y == 5)
-  {
+  if (node->pos.x == 10 && node->pos.y == 5) {
     char buf_before[1024];
-    arr_uint8_t_to_string(buf_before, sizeof(buf_before), node->possible_values);
-    printf("DEBUG: Specific node (10,5) possible values BEFORE removal: %s\n", buf_before);
-    
+    arr_uint8_t_to_string(buf_before, sizeof(buf_before),
+                          node->possible_values);
+    printf("DEBUG: Specific node (10,5) possible values BEFORE removal: %s\n",
+           buf_before);
+
     // Debug: Print values being deleted
     char buf_delete[1024];
     arr_uint8_t_to_string(buf_delete, sizeof(buf_delete), data->values);
     printf("DEBUG: Values to delete from (10,5): %s\n", buf_delete);
   }
-  
 
   for (size_t i = 0; i < data->values->count; i++) {
     int contains =
@@ -315,9 +315,9 @@ int kak_explore_from_node_until(arr_Nodes *grid, Node *target, FilterCb filter,
 
 int kak_iterate_grid_modify_on_filter(arr_Nodes *grid, FilterCb filter,
                                       ModifyCb modify) {
-  nob_da_foreach(Node *, it, grid) {
-    if (filter.fn((*it), filter.data)) {
-      modify.fn((*it), modify.data);
+  nob_da_foreach(Node, it, grid) {
+    if (filter.fn(it, filter.data)) {
+      modify.fn(it, modify.data);
       return 1;
     }
   }

@@ -1,13 +1,13 @@
 #include "ht.h"
 #include "kakuro.h"
+#include "nob.h"
 #include "raylib.h"
+#include "raymath.h"
+#include "rlgl.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "raymath.h"
-#include "rlgl.h"
 
 int main(void) {
   // Initialize the window
@@ -42,6 +42,7 @@ int main(void) {
   ctx.grid = grid;
   ctx.combination_map = ht_create();
   ctx.possible_sums_per_count = arr_uint8_t_2d_create(10);
+  ctx.sorted_grid = arr_node_ptrs_create(16);
 
   arr_nodes_serialize("test.txt", grid);
   // TODO: fix leak
@@ -56,11 +57,33 @@ int main(void) {
   // Calculate count sum combinations
   cache_possible_sums(ctx.combination_map, ctx.possible_sums_per_count);
 
-  // check clue tiles
+  // inits clues with 9 tiles;
   clue_tile_45_checker(ctx.grid);
 
   // set empty tile sums according to clues
   clue_set_all_empty_sums(ctx.grid);
+
+  // fills grid with possible sums
+  populate_possible_sums_for_empty_tiles(ctx.combination_map, &ctx);
+
+  for (size_t i = 0; i < ctx.grid->count; i++) {
+    Node *node = &ctx.grid->items[i];
+    if (node->type == TILETYPE_EMPTY) {
+      nob_da_append(ctx.sorted_grid, node);
+    }
+  }
+  size_t bufsize2 = 1024 * 10;
+  char buf2[bufsize2];
+  arr_node_ptrs_to_string(buf2, bufsize2, ctx.sorted_grid);
+  printf("\n\nBEFORE SORTING%s\n\n", buf2);
+
+  // Then call:
+  qsort(ctx.sorted_grid->items, ctx.sorted_grid->count, sizeof(Node *),
+        node_compare_possible_count);
+
+  memset(buf2, 0, bufsize2);
+  arr_node_ptrs_to_string(buf2, bufsize2, ctx.sorted_grid);
+  printf("\n\nAFTER SORTING\n\n%s", buf2);
 
   while (!WindowShouldClose()) {
     //    float delta_time = GetFrameTime(); // Get time since last frame

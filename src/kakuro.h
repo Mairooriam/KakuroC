@@ -26,6 +26,31 @@
 // good source
 // https://puzzling.stackexchange.com/questions/49927/creating-a-kakuro-puzzle-with-a-unique-solution
 // https://medium.com/@sebastian.charmot/an-introduction-to-binary-integer-linear-programming-bilp-using-kakuro-puzzles-eb1a8c4c6057
+
+// following nob style. testing this.
+#define DA_CREATE(type)                                                        \
+  type *type##_create(size_t cap) {                                            \
+    type *da = malloc(sizeof(type));                                           \
+    if (!da)                                                                   \
+      return NULL;                                                             \
+    da->count = 0;                                                             \
+    da->capacity = cap;                                                        \
+    da->items = malloc(sizeof(*da->items) * cap);                              \
+    if (!da->items) {                                                          \
+      free(da);                                                                \
+      return NULL;                                                             \
+    }                                                                          \
+    return da;                                                                 \
+  }
+
+#define DA_FREE(type)                                                          \
+  void type##_free(type *da) {                                                 \
+    if (da) {                                                                  \
+      free(da->items);                                                         \
+      free(da);                                                                \
+    }                                                                          \
+  }
+
 typedef enum {
   STATE_KEY_NONE,
   STATE_KEY_ONE,
@@ -159,9 +184,21 @@ Node *node_create_clue(Vec2u8 pos, uint8_t sum_x, uint8_t sum_y);
 Node *node_create_blocked(Vec2u8 pos);
 size_t node_to_string(char *buf, size_t bufsize, const Node *node);
 
-// TODO: array functions
 typedef struct {
   Node **items;
+  size_t count;
+  size_t capacity;
+} arr_node_ptrs;
+// TODO:testing macros remove if bad
+arr_node_ptrs *arr_node_ptrs_create(size_t cap);
+void arr_node_ptrs_free(arr_node_ptrs *da);
+size_t arr_node_ptrs_to_string(char *buf, size_t bufsize,
+                               const arr_node_ptrs *arr);
+int node_compare_possible_count(const void *a, const void *b);
+
+// TODO: array functions
+typedef struct {
+  Node *items;
   size_t count;
   size_t capacity;
   size_t x_dimension;
@@ -216,6 +253,7 @@ typedef struct {
   int size;
   ht *combination_map;
   arr_uint8_t_2d *possible_sums_per_count;
+  arr_node_ptrs *sorted_grid;
 
 } KakuroContext;
 

@@ -12,6 +12,9 @@
 #define NOB_IMPLEMENTATION
 #include "nob.h"
 
+DA_CREATE(arr_node_ptrs)
+DA_FREE(arr_node_ptrs)
+
 Node *node_create(Vec2u8 pos, TileType type, uint8_t sum_x, uint8_t sum_y) {
   Node *node = malloc(sizeof(Node));
   if (!node)
@@ -77,7 +80,7 @@ bool arr_nodes_add(arr_Nodes *arr, Node *node) {
   if (arr->count >= arr->capacity) {
     size_t new_capacity = arr->capacity * 2;
 
-    Node **temp = realloc(arr->items, sizeof(Node *) * new_capacity);
+    Node *temp = realloc(arr->items, sizeof(Node *) * new_capacity);
 
     if (!temp) {
       printf("Failed to reallocate nodes array\n");
@@ -88,14 +91,14 @@ bool arr_nodes_add(arr_Nodes *arr, Node *node) {
     arr->capacity = new_capacity;
   }
 
-  arr->items[arr->count] = node;
+  arr->items[arr->count] = *node;
   arr->count++;
   return true;
 }
 size_t arr_nodes_to_string(char *buf, size_t bufsize, const arr_Nodes *arr) {
   size_t written = 0;
   for (size_t i = 0; i < arr->count; i++) {
-    written += node_to_string(buf + written, bufsize, arr->items[i]);
+    written += node_to_string(buf + written, bufsize, &arr->items[i]);
   }
   return written;
 }
@@ -104,7 +107,7 @@ int arr_nodes_serialize(const char *path, const arr_Nodes *arr) {
   size_t bufsize = 1024 * 20;
   char *buf = malloc(bufsize);
   for (size_t i = 0; i < arr->count; i++) {
-    written += node_to_string(buf + written, bufsize - written, arr->items[i]);
+    written += node_to_string(buf + written, bufsize - written, &arr->items[i]);
     if (written >= bufsize) {
       // TODO: grow buffer
       printf("SERIALIZER OUT OF BUFFER FIX arr_nodes_serialize");
@@ -216,7 +219,7 @@ arr_Nodes *arr_nodes_create(size_t x_dimension, size_t y_dimension) {
   arr->y_dimension = y_dimension;
   arr->count = 0;
   arr->capacity = x_dimension * y_dimension;
-  arr->items = malloc(sizeof(Node *) * arr->capacity);
+  arr->items = malloc(sizeof(Node) * arr->capacity);
 
   if (!arr->items) {
     printf("Failed to allocate nodes array\n");
@@ -294,7 +297,7 @@ void render_grid(const arr_Nodes *arr, int margin, int size) {
 #ifdef ANIMATED
       if (index < animation_index) {
 #endif /* ifdef ANIMATED */
-        Node *n = arr->items[index];
+        Node *n = &arr->items[index];
 
         render_node(n, margin, size, NULL);
 #ifdef ANIMATED
@@ -457,7 +460,7 @@ Node *arr_nodes_get(const arr_Nodes *arr, size_t x, size_t y) {
   }
 
   size_t i = y * arr->y_dimension + x;
-  return arr->items[i];
+  return &arr->items[i];
 }
 
 static bool has_9_empty(arr_Nodes *n, size_t start_x, size_t start_y,
@@ -516,11 +519,15 @@ void clue_calculate_ids(arr_Nodes *arr) {
 
 void clue_set_all_empty_sums(arr_Nodes *arr) {
   // set sums
+
   for (size_t y = 0; y < arr->y_dimension; y++) {
     for (size_t x = 0; x < arr->x_dimension; x++) {
       Node *node = arr_nodes_get(arr, x, y);
       if (node->type == TILETYPE_CLUE) {
-        printf("hello from outside while but inside if\n");
+        nob_log(NOB_INFO,
+                "Processing clue node at position (%zu,%zu) with sum_x=%hhu, "
+                "sum_y=%hhu",
+                x, y, node->sum_x, node->sum_y);
         // TODO: handle if there is more than 45 space? if needed
         size_t x_temp = x;
         size_t y_temp = y;
@@ -529,45 +536,49 @@ void clue_set_all_empty_sums(arr_Nodes *arr) {
         // Set nodes on x axis and count empty nodes on x axis
         while (x_temp++ < arr->x_dimension - 1) {
           Node *n = arr_nodes_get(arr, x_temp, y);
-          if (n->type == TILETYPE_EMPTY) {
-            printf("Hello this is empty node\n");
+          // TODO: future proof this check. it had nasty bug of not checking
+          // empty valid. same for all checks
+          if (n->type == TILETYPE_EMPTY || n->type == TILETYPE_EMPTY_VALID) {
+            nob_log(NOB_INFO, "Setting sum_x=%hhu for empty node at (%zu,%zu)",
+                    node->sum_x, x_temp, y);
             n->sum_x = node->sum_x;
             x_count++;
           } else {
             break;
           }
-          printf("cuyrrent x:%zu y:%zu\n", x_temp, y);
+          printf("Current x:%zu y:%zu\n", x_temp, y);
         }
 
         // Set nodes on y axis and count empty nodes on y axis
         while (y_temp++ < arr->y_dimension - 1) {
           Node *n = arr_nodes_get(arr, x, y_temp);
-          if (n->type == TILETYPE_EMPTY) {
-            printf("Hello this is empty node\n");
+          if (n->type == TILETYPE_EMPTY || n->type == TILETYPE_EMPTY_VALID) {
+            printf("Found empty node at (%zu,%zu), setting sum_y to %hhu\n", x,
+                   y_temp, node->sum_y);
             n->sum_y = node->sum_y;
             y_count++;
           } else {
             break;
           }
-          printf("cuyrrent x:%zu y:%zu\n", x, y_temp);
+          printf("Current x:%zu y:%zu\n", x, y_temp);
         }
 
-        printf("x_count: %zu, y_count: %zu for clue at (%zu,%zu)\n", x_count,
-               y_count, x, y);
+        printf("For clue at (%zu,%zu): counted %zu empty nodes on x-axis, %zu "
+               "on y-axis\n",
+               x, y, x_count, y_count);
 
         // Update count on the corresponding nodes
         y_temp = y;
         while (y_temp++ < arr->y_dimension - 1) {
           Node *n = arr_nodes_get(arr, x, y_temp);
-          if (n->type == TILETYPE_EMPTY) {
-            printf("Hello this is empty node\n");
+          if (n->type == TILETYPE_EMPTY || n->type == TILETYPE_EMPTY_VALID) {
+            printf("Setting y_empty_count=%zu for empty node at (%zu,%zu)\n",
+                   y_count, x, y_temp);
             n->y_empty_count = y_count;
-            printf("Set y_empty_count = %zu for node at (%zu,%zu)\n", y_count,
-                   x, y_temp);
           } else {
             break;
           }
-          printf("cuyrrent x:%zu y:%zu\n", x, y_temp);
+          printf("Current x:%zu y:%zu\n", x, y_temp);
         }
         node->y_empty_count = y_count;
 
@@ -575,14 +586,13 @@ void clue_set_all_empty_sums(arr_Nodes *arr) {
         while (x_temp++ < arr->x_dimension - 1) {
           Node *n = arr_nodes_get(arr, x_temp, y);
           if (n->type == TILETYPE_EMPTY) {
-            printf("Hello this is empty node\n");
+            printf("Setting x_empty_count=%zu for empty node at (%zu,%zu)\n",
+                   x_count, x_temp, y);
             n->x_empty_count = x_count;
-            printf("Set x_empty_count = %zu for node at (%zu,%zu)\n", x_count,
-                   x_temp, y);
           } else {
             break;
           }
-          printf("cuyrrent x:%zu y:%zu\n", x_temp, y);
+          printf("Current x:%zu y:%zu\n", x_temp, y);
         }
         node->x_empty_count = x_count;
       }
@@ -787,7 +797,7 @@ void input_keys(KakuroContext *ctx) {
   if (IsKeyDown(KEY_C)) {
   } else if (IsKeyReleased(KEY_C)) {
     size_t index = cursor->pos.y * ctx->grid->y_dimension + cursor->pos.x;
-    Node *node = ctx->grid->items[index];
+    Node *node = &ctx->grid->items[index];
     node->type = TILETYPE_CLUE;
     printf("Tile at index %zu (%u,%u) updated to clue.\n", index, cursor->pos.x,
            cursor->pos.y);
@@ -797,7 +807,7 @@ void input_keys(KakuroContext *ctx) {
   if (IsKeyDown(KEY_B)) {
   } else if (IsKeyReleased(KEY_B)) {
     size_t index = cursor->pos.y * ctx->grid->y_dimension + cursor->pos.x;
-    Node *node = ctx->grid->items[index];
+    Node *node = &ctx->grid->items[index];
     node->type = TILETYPE_BLOCKED;
     printf("Tile at index %zu (%u,%u) updated to blockeblockedd.\n", index,
            cursor->pos.x, cursor->pos.y);
@@ -807,7 +817,7 @@ void input_keys(KakuroContext *ctx) {
   if (IsKeyDown(KEY_P)) {
   } else if (IsKeyReleased(KEY_P)) {
     size_t index = cursor->pos.y * ctx->grid->y_dimension + cursor->pos.x;
-    Node *node = ctx->grid->items[index];
+    Node *node = &ctx->grid->items[index];
     size_t bufsize = 1024;
     char buf[bufsize];
     node_to_string(buf, bufsize, node);
@@ -834,7 +844,7 @@ void input_keys(KakuroContext *ctx) {
   if (charPressed >= '0' && charPressed <= '9') {
     int number = charPressed - '0';
     size_t index = cursor->pos.y * ctx->grid->y_dimension + cursor->pos.x;
-    Node *node = ctx->grid->items[index];
+    Node *node = &ctx->grid->items[index];
     switch (node->type) {
     case TILETYPE_BLOCKED: {
     } break;
@@ -939,28 +949,29 @@ void input_keys(KakuroContext *ctx) {
       // one? which? fdasfa
     } else {
       // TODO: decide on how to place clue!?
+      // start looking from locked cell 1
       //  1st try randomly
       //  look for clue that has no sum.
       //  Place sum accroding to empty fields for it and rerun.
       //
       // TODO: currently iterating whole grid. in future use cache of clues?
       // Commented for testing
-      nob_da_foreach(Node *, it, ctx->grid) {
-        // Node *n = (*it);
-        // if (n->type != TILETYPE_CLUE) {
-        //   continue;
-        // }
-        // // TODO: add n->sum_x == 0 && right_node_empty()
-        // if (n->sum_x == 0) {
-        //   uint8_t sum =
-        //   get_random_sum_for_count(ctx->possible_sums_per_count,
-        //                                          n->x_empty_count);
-        //   printf("Got random sum %hhu\n", sum);
-        //   if (n->x_empty_count != 0) {
-        //     n->sum_x = sum;
-        //     break;
+      for (size_t i = 0; i < ctx->grid->count; i++) {
+        //   Node *n = &ctx->grid->items[i];
+        //   if (n->type != TILETYPE_CLUE) {
+        //     continue;
         //   }
-        // }
+        //   // TODO: add n->sum_x == 0 && right_node_empty()
+        //   if (n->sum_x == 0) {
+        //     uint8_t sum =
+        //     get_random_sum_for_count(ctx->possible_sums_per_count,
+        //                                            n->x_empty_count);
+        //     printf("Got random sum %hhu\n", sum);
+        //     if (n->x_empty_count != 0) {
+        //       n->sum_x = sum;
+        //       break;
+        //     }
+        //   }
       }
       printf("Not correct tile found placing clue\n");
     }
@@ -1181,8 +1192,8 @@ Node *kak_get_node_under_cursor_tile(const arr_Nodes *arr, const Node *cursor) {
 }
 Node *kak_lock_correct_tiles(arr_Nodes *nodes) {
   // TODO: cache of empty nodes
-  nob_da_foreach(Node *, it, nodes) {
-    Node *node = (*it);
+  for (size_t i = 0; i < nodes->count; i++) {
+    Node *node = &nodes->items[i];
     if (node->possible_values->count == 1) {
       if (node->type != TILETYPE_EMPTY_VALID) {
         node->type = TILETYPE_EMPTY_VALID;
@@ -1206,16 +1217,16 @@ get_possible_sums_from_cache_for_tile(ht *combination_map, Node *n) {
   uint16_t key_x = ((uint16_t)count_x << 8) | sum_x;
   arr_uint8_t_2d *combs_x = (arr_uint8_t_2d *)ht_get(combination_map, key_x);
   if (combs_x == NULL) {
-    // nob_log(NOB_WARNING,
-    //         "Value for count_x: %hhu, sum_x: %hhu doens't exist in the
-    //         cache", count_x, sum_x);
+    nob_log(NOB_WARNING,
+            "Value for count_x: %hhu, sum_x: %hhu doens't exist in the cache",
+            count_x, sum_x);
   } else {
-    // printf("Key: %hu (Count: %hhu, Sum: %hhu), Combinations: %zu\n", key_x,
-    //        count_x, sum_x, combs_x->count);
-    // nob_da_foreach(arr_uint8_t *, subset, combs_x) {
-    //   // nob_da_foreach(uint8_t, it, *subset) { printf("%hhu ", (*it)); }
-    //   // printf("\n");
-    // }
+    printf("Key: %hu (Count: %hhu, Sum: %hhu), Combinations: %zu\n", key_x,
+           count_x, sum_x, combs_x->count);
+    nob_da_foreach(arr_uint8_t *, subset, combs_x) {
+      nob_da_foreach(uint8_t, it, *subset) { printf("%hhu ", (*it)); }
+      printf("\n");
+    }
   }
 
   // FOR Y
@@ -1225,17 +1236,17 @@ get_possible_sums_from_cache_for_tile(ht *combination_map, Node *n) {
   uint16_t key_y = ((uint16_t)count_y << 8) | sum_y;
   arr_uint8_t_2d *combs_y = (arr_uint8_t_2d *)ht_get(combination_map, key_y);
   if (combs_y == NULL) {
-    // nob_log(NOB_WARNING,
-    //         "Value for count_y: %hhu, sum_y: %hhu doens't exist in the
-    //         cache", count_y, sum_y);
+    nob_log(NOB_WARNING,
+            "Value for count_y: %hhu, sum_y: %hhu doens't exist in the cache",
+            count_y, sum_y);
   } else {
-    // printf("Key: %hu (Count: %hhu, Sum: %hhu), Combinations: %zu\n", key_y,
-    //        count_y, sum_y, combs_y->count);
-    // // Use nob_da_foreach instead of manual loop
-    // nob_da_foreach(arr_uint8_t *, subset, combs_y) {
-    //   nob_da_foreach(uint8_t, it, *subset) { printf("%hhu ", (*it)); }
-    //   printf("\n");
-    // }
+    printf("Key: %hu (Count: %hhu, Sum: %hhu), Combinations: %zu\n", key_y,
+           count_y, sum_y, combs_y->count);
+    // Use nob_da_foreach instead of manual loop
+    nob_da_foreach(arr_uint8_t *, subset, combs_y) {
+      nob_da_foreach(uint8_t, it, *subset) { printf("%hhu ", (*it)); }
+      printf("\n");
+    }
   }
 
   // TODO: make array comparing functions
@@ -1295,9 +1306,8 @@ void populate_possible_sums_for_empty_tiles(ht *combination_map,
   // TODO: works but loop overrides the removing of duplicates.
   arr_Nodes *cache = arr_nodes_create(10, 10);
 
-  nob_da_foreach(Node *, it1, ctx->grid) {
-    Node *node = (*it1);
-
+  for (size_t i = 0; i < ctx->grid->count; i++) {
+    Node *node = &ctx->grid->items[i];
     // for now two pass. first get possible sums for each node.
     // thne later second pass to remove already "placed" values
     arr_uint8_t_2d *arr =
@@ -1335,12 +1345,12 @@ void populate_possible_sums_for_empty_tiles(ht *combination_map,
   for (size_t i = 0; i < cache->count; i++) {
 
     ModifyCb modify = modify_cb_delete_duplicates_from_possible_values(
-        cache->items[i]->possible_values);
+        cache->items[i].possible_values);
     uint32_t mask = tiletype_mask(TILETYPE_CLUE, -1);
     FilterCb filter = filter_cb_by_tiletype(mask);
 
     // Explore grid and use modify function according to filter function
-    kak_explore_from_node_until(ctx->grid, cache->items[i], filter, modify);
+    kak_explore_from_node_until(ctx->grid, &cache->items[i], filter, modify);
 
     free(modify.data);
     free(filter.data);
@@ -1384,4 +1394,27 @@ void update_process(KakuroContext *ctx) {
     free(filter.data);
     ctx->Cursor_tile.moved = false;
   }
+}
+
+size_t arr_node_ptrs_to_string(char *buf, size_t bufsize,
+                               const arr_node_ptrs *arr) {
+  size_t written = 0;
+  for (size_t i = 0; i < arr->count; i++) {
+    written += node_to_string(buf + written, bufsize - written, arr->items[i]);
+  }
+  return written;
+}
+
+int node_compare_possible_count(const void *a, const void *b) {
+  const Node *node_a = *(const Node **)a;
+  const Node *node_b = *(const Node **)b;
+
+  size_t count_a = node_a->possible_values ? node_a->possible_values->count : 0;
+  size_t count_b = node_b->possible_values ? node_b->possible_values->count : 0;
+
+  if (count_a < count_b)
+    return -1;
+  if (count_a > count_b)
+    return 1;
+  return 0;
 }
