@@ -100,6 +100,7 @@ int main(void) {
     ClearBackground(RAYWHITE);
     DrawText("Hello, World!", 190, 200, 20, LIGHTGRAY);
     render_grid(ctx.grid, ctx.margin, ctx.size);
+    render_sorted_grid(ctx.sorted_grid, ctx.margin, ctx.size);
     render_node(ctx.Cursor_tile.tile, ctx.margin, ctx.size,
                 (void *)&ctx.Cursor_tile);
     render_state_info(ctx.state);
@@ -107,13 +108,15 @@ int main(void) {
     EndMode2D();
 
     // MOUSE REF
-    DrawCircleV(GetMousePosition(), 4, DARKGRAY);
+    Vector2 mouseScreen = GetMousePosition();
+    Vector2 mouseWorld = GetScreenToWorld2D(mouseScreen, camera);  // Convert to world space
+    DrawCircleV(mouseScreen, 4, DARKGRAY);
     DrawTextEx(
-        GetFontDefault(), TextFormat("[%i, %i]", GetMouseX(), GetMouseY()),
-        Vector2Add(GetMousePosition(), (Vector2){-44, -24}), 20, 2, BLACK);
-
-    EndDrawing();
-  }
+        GetFontDefault(), 
+        TextFormat("Screen: [%i, %i] World: [%.2f, %.2f]", (int)mouseScreen.x, (int)mouseScreen.y, mouseWorld.x, mouseWorld.y),
+        Vector2Add(mouseScreen, (Vector2){-44, -24}), 20, 2, BLACK);
+        EndDrawing();
+      }
 
   // CLEANUP
   CloseWindow();

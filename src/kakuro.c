@@ -316,6 +316,10 @@ void render_node(const Node *n, int margin, int size, void *nodeData) {
   // TODO: change units into floats?
   int screen_x = (int)n->pos.x * (size + margin);
   int screen_y = (int)n->pos.y * (size + margin);
+  render_nodeEx(n, margin, size, screen_x, screen_y, nodeData);
+}
+void render_nodeEx(const Node *n, int margin, int size, int screen_x,
+                   int screen_y, void *nodeData) {
   Rectangle rect = (Rectangle){screen_x, screen_y, size, size};
   Rectangle x_text_rect =
       (Rectangle){screen_x + size / 2, screen_y, size / 2, size / 2};
@@ -542,6 +546,7 @@ void clue_set_all_empty_sums(arr_Nodes *arr) {
             nob_log(NOB_INFO, "Setting sum_x=%hhu for empty node at (%zu,%zu)",
                     node->sum_x, x_temp, y);
             n->sum_x = node->sum_x;
+            n->clue_x = node;
             x_count++;
           } else {
             break;
@@ -556,6 +561,7 @@ void clue_set_all_empty_sums(arr_Nodes *arr) {
             printf("Found empty node at (%zu,%zu), setting sum_y to %hhu\n", x,
                    y_temp, node->sum_y);
             n->sum_y = node->sum_y;
+            n->clue_y = node;
             y_count++;
           } else {
             break;
@@ -943,37 +949,19 @@ void input_keys(KakuroContext *ctx) {
       free(modify.data);
       free(filter.data);
 
-      // TODO: NOT WORKING AT ALL NOT GOOD TERRIBLE DASDASDAGSDG
-      // try one clue -> if after that no new "lockable" node then reset back
-      // and try next clue. if none of the clues lead to ambigious tile select
-      // one? which? fdasfa
     } else {
-      // TODO: decide on how to place clue!?
-      // start looking from locked cell 1
-      //  1st try randomly
-      //  look for clue that has no sum.
-      //  Place sum accroding to empty fields for it and rerun.
-      //
-      // TODO: currently iterating whole grid. in future use cache of clues?
-      // Commented for testing
-      for (size_t i = 0; i < ctx->grid->count; i++) {
-        //   Node *n = &ctx->grid->items[i];
-        //   if (n->type != TILETYPE_CLUE) {
-        //     continue;
-        //   }
-        //   // TODO: add n->sum_x == 0 && right_node_empty()
-        //   if (n->sum_x == 0) {
-        //     uint8_t sum =
-        //     get_random_sum_for_count(ctx->possible_sums_per_count,
-        //                                            n->x_empty_count);
-        //     printf("Got random sum %hhu\n", sum);
-        //     if (n->x_empty_count != 0) {
-        //       n->sum_x = sum;
-        //       break;
-        //     }
-        //   }
-      }
       printf("Not correct tile found placing clue\n");
+
+      for (size_t i = 0; i < ctx->sorted_grid->count; i++) {
+        Node *node = ctx->sorted_grid->items[i];
+        if (node->clue_x->sum_x == 0) {
+          printf("setting sum x to random number. then testing recalulating "
+                 "possible values. then checking if count is 1. if its one "
+                 "okay. if its not one going back and trying different sum\n");
+          break;
+        } else if (node->clue_y->sum_y == 0) {
+        }
+      }
     }
   }
 }
@@ -1012,6 +1000,11 @@ void input_mouse(KakuroContext *ctx) {
     float scale = 0.2f * ctx->mWheel;
     camera->zoom = Clamp(expf(logf(camera->zoom) + scale), 0.125f, 256.0f);
     printf("camera zoom: %f\n", camera->zoom);
+  }
+  if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+    Vector2 delta = GetMouseDelta();
+    delta = Vector2Scale(delta, -1.0f / ctx->camera->zoom);
+    camera->target = Vector2Add(ctx->camera->target, delta);
   }
 }
 
@@ -1417,4 +1410,27 @@ int node_compare_possible_count(const void *a, const void *b) {
   if (count_a > count_b)
     return 1;
   return 0;
+}
+void render_sorted_grid(const arr_node_ptrs *grid, int margin, int size) {
+  size_t pos = 0;
+  for (size_t i = 0; i < grid->count; i++) {
+    Node *n = grid->items[i];
+    if (n->possible_values->count != 0) {
+      int screen_x = (int)(-1 + pos * 3) * (size + margin);
+      int screen_y = -1 * (size + margin);
+
+      int screen_x_clue_x = (int)(-2 + pos * 3) * (size + margin);
+      int screen_x_clue_y = -1 * (size + margin);
+
+      int screen_y_clue_x = (int)(-1 + pos * 3) * (size + margin);
+      int screen_y_clue_y = -2 * (size + margin);
+
+      render_nodeEx(n->clue_y, margin, size, screen_y_clue_x, screen_y_clue_y,
+                    NULL);
+      render_nodeEx(n->clue_x, margin, size, screen_x_clue_x, screen_x_clue_y,
+                    NULL);
+      render_nodeEx(n, margin, size, screen_x, screen_y, NULL);
+      pos++;
+    }
+  }
 }

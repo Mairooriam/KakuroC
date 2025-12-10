@@ -158,6 +158,7 @@ arr_uint8_t_2d *arr_uint8_t_2d_create(size_t initial_capacity);
 size_t arr_uint8_t_2d_to_string(char *buf, size_t bufsize, arr_uint8_t_2d *arr);
 
 // TODO: make union for clue and empty node? to separate fields a bit
+typedef struct Node Node;
 typedef struct Node {
   Vec2u8 pos; // pos of cell
   // Node *clue_x; // TODO: separate empty and clue fields
@@ -165,6 +166,8 @@ typedef struct Node {
   // this?
   TileType type;
   uint8_t value;
+  Node *clue_x;
+  Node *clue_y;
   arr_uint8_t *possible_values; // possible values for cell
   arr_uint8_t_2d *clue_possible_combinations;
   int id;
@@ -217,6 +220,9 @@ Node *arr_nodes_get(const arr_Nodes *arr, size_t x, size_t y);
 void render_grid(const arr_Nodes *arr, int margin, int size);
 // TODO: for now nodeData lazy
 void render_node(const Node *node, int margin, int size, void *nodeData);
+void render_nodeEx(const Node *node, int margin, int size, int screen_x,
+                   int screen_y, void *nodeData);
+void render_sorted_grid(const arr_node_ptrs *grid, int margin, int size);
 void render_state_info(int state);
 
 void clue_tile_45_checker(arr_Nodes *n);
