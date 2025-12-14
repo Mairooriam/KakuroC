@@ -237,7 +237,7 @@ void cache_possible_sums(ht *combination_map,
 Node *kak_get_node_under_cursor_tile(const arr_Nodes *arr, const Node *cursor);
 
 // returns count of locked tiles
-Node *kak_lock_correct_tiles(arr_Nodes *nodes);
+size_t kak_lock_correct_tiles(arr_Nodes *nodes, arr_node_ptrs *locked);
 
 Vector2 text_calculate_position(const Rectangle *rect, Font font,
                                 float fontsize, char *buf);
@@ -273,6 +273,7 @@ void input_mouse(KakuroContext *ctx);
 void update_process(KakuroContext *ctx);
 
 void get_possible_sums_from_cache_for_selected(ht *combination_map,
+
                                                KakuroContext *ctx);
 void populate_possible_sums_for_empty_tiles(ht *combination_map,
                                             KakuroContext *ctx);
@@ -280,3 +281,17 @@ void print_binary_stdout(unsigned int number);
 
 void shoot_ray_to_mouse_from_cursor_tile(KakuroContext *ctx);
 uint8_t get_random_sum_for_count(arr_uint8_t_2d *sums_for_count, uint8_t count);
+
+typedef struct {
+  Node **affected_nodes;    // Pointers to nodes that were modified
+  arr_uint8_t **old_values; // Their original possible_values
+  uint8_t *old_sums;        // Original sum values (if we modified clues)
+  size_t count;
+} GridSnapshot;
+
+GridSnapshot *grid_snapshot_create(arr_Nodes *grid, Node *clue);
+void grid_snapshot_restore(GridSnapshot *snap);
+void grid_snapshot_free(GridSnapshot *snap);
+bool is_solution_unambiguous(arr_Nodes *grid);
+size_t count_locked_tiles(arr_Nodes *grid);
+bool backtrack_solve_puzzle(KakuroContext *ctx, int depth);

@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <x86gprintrin.h>
 
 #define NOB_IMPLEMENTATION
 #include "nob.h"
@@ -936,19 +937,23 @@ void input_keys(KakuroContext *ctx) {
   } else if (IsKeyReleased(KEY_W)) {
     printf("Populating possible");
     populate_possible_sums_for_empty_tiles(ctx->combination_map, ctx);
-    Node *locked = kak_lock_correct_tiles(ctx->grid);
-    if (locked) {
-      ModifyCb modify =
-          modify_cb_node_values(locked->possible_values->items[0]);
-      uint32_t mask = tiletype_mask(TILETYPE_CLUE, -1);
-      FilterCb filter = filter_cb_by_tiletype(mask);
+    arr_node_ptrs *locked = arr_node_ptrs_create(5);
+    size_t lockedCount = kak_lock_correct_tiles(ctx->grid, locked);
+    if (lockedCount > 0) {
+      for (size_t i = 0; i < locked->count; i++) {
+        Node *lockedNode = locked->items[i];
+        ModifyCb modify =
+            modify_cb_node_values(lockedNode->possible_values->items[0]);
+        uint32_t mask = tiletype_mask(TILETYPE_CLUE, -1);
 
-      // Explore grid and use modify function according to filter function
-      kak_explore_from_node_until(ctx->grid, locked, filter, modify);
+        FilterCb filter = filter_cb_by_tiletype(mask);
 
-      free(modify.data);
-      free(filter.data);
+        // Explore grid and use modify function according to filter function
+        kak_explore_from_node_until(ctx->grid, lockedNode, filter, modify);
 
+        free(modify.data);
+        free(filter.data);
+      }
     } else {
       printf("Not correct tile found placing clue\n");
 
@@ -963,6 +968,12 @@ void input_keys(KakuroContext *ctx) {
         }
       }
     }
+  }
+
+  if (IsKeyReleased(KEY_T)) {
+    printf("Starting backtracking solver...\n");
+
+    backtrack_solve_puzzle(ctx, 0);
   }
 }
 
@@ -1183,8 +1194,9 @@ void cache_possible_sums(ht *combination_map,
 Node *kak_get_node_under_cursor_tile(const arr_Nodes *arr, const Node *cursor) {
   return arr_nodes_get(arr, cursor->pos.x, cursor->pos.y);
 }
-Node *kak_lock_correct_tiles(arr_Nodes *nodes) {
+size_t kak_lock_correct_tiles(arr_Nodes *nodes, arr_node_ptrs *locked) {
   // TODO: cache of empty nodes
+  size_t count = 0;
   for (size_t i = 0; i < nodes->count; i++) {
     Node *node = &nodes->items[i];
     if (node->possible_values->count == 1) {
@@ -1192,11 +1204,12 @@ Node *kak_lock_correct_tiles(arr_Nodes *nodes) {
         node->type = TILETYPE_EMPTY_VALID;
         node->color = (Color){0, 150, 0, 100};
         node->value = node->possible_values->items[0];
-        return node;
+        count++;
+        nob_da_append(locked, node);
       }
     }
   }
-  return NULL;
+  return count;
 }
 
 static arr_uint8_t_2d *
@@ -1301,54 +1314,61 @@ void populate_possible_sums_for_empty_tiles(ht *combination_map,
 
   for (size_t i = 0; i < ctx->grid->count; i++) {
     Node *node = &ctx->grid->items[i];
-    // for now two pass. first get possible sums for each node.
-    // thne later second pass to remove already "placed" values
-    arr_uint8_t_2d *arr =
-        get_possible_sums_from_cache_for_tile(combination_map, node);
-    if (arr != NULL) {
-      arr_uint8_t *uniquearr = arr_uint8_t_create(16);
-      nob_da_foreach(arr_uint8_t *, it2, arr) {
-        arr_uint8_t *arr1 = (*it2);
-        nob_da_foreach(uint8_t, it3, arr1) {
-          uint8_t val = (*it3);
-          if (val == 0) {
-            continue;
-          }
-          if (arr_uint8_t_contains(uniquearr, val) == -1) {
-            nob_da_append(uniquearr, val);
+    // TODO: this is temp fix
+    if (node->type == TILETYPE_EMPTY) {
+
+      // for now two pass. first get possible sums for each node.
+      //
+      // thne later second pass to remove already "placed" values
+      arr_uint8_t_2d *arr =
+          get_possible_sums_from_cache_for_tile(combination_map, node);
+      if (arr != NULL) {
+        arr_uint8_t *uniquearr = arr_uint8_t_create(16);
+        nob_da_foreach(arr_uint8_t *, it2, arr) {
+          arr_uint8_t *arr1 = (*it2);
+          nob_da_foreach(uint8_t, it3, arr1) {
+            uint8_t val = (*it3);
+            if (val == 0) {
+              continue;
+            }
+            if (arr_uint8_t_contains(uniquearr, val) == -1) {
+              nob_da_append(uniquearr, val);
+            }
           }
         }
-      }
-      // TODO: leaks if called multiple times? maybe?
-      // need to also filter according to this nodes row's and columns placed
-      // value
+        // TODO: leaks if called multiple times? maybe?
+        // need to also filter according to this nodes row's and columns placed
+        // value
 
-      node->possible_values = uniquearr;
-      if (node->value != 0) {
-        arr_nodes_add(cache, node);
-      }
+        node->possible_values = uniquearr;
+        if (node->value != 0) {
+          arr_nodes_add(cache, node);
+        }
 
-      // TODO: random buf
-      // char buf[1024];
-      // arr_uint8_t_to_string(buf, 1024, uniquearr);
-      // nob_log(NOB_INFO, "Set x:%hhu,y:%hhu values to: %s", (*it1)->pos.x,
-      //         (*it1)->pos.y, buf);
+        // TODO: random buf
+        // char buf[1024];
+        // arr_uint8_t_to_string(buf, 1024, uniquearr);
+        // nob_log(NOB_INFO, "Set x:%hhu,y:%hhu values to: %s", (*it1)->pos.x,
+        //         (*it1)->pos.y, buf);
+      }
     }
   }
   for (size_t i = 0; i < cache->count; i++) {
+    if (cache->items[i].type == TILETYPE_EMPTY) {
 
-    ModifyCb modify = modify_cb_delete_duplicates_from_possible_values(
-        cache->items[i].possible_values);
-    uint32_t mask = tiletype_mask(TILETYPE_CLUE, -1);
-    FilterCb filter = filter_cb_by_tiletype(mask);
+      ModifyCb modify = modify_cb_delete_duplicates_from_possible_values(
+          cache->items[i].possible_values);
+      uint32_t mask = tiletype_mask(TILETYPE_CLUE, -1);
+      FilterCb filter = filter_cb_by_tiletype(mask);
 
-    // Explore grid and use modify function according to filter function
-    kak_explore_from_node_until(ctx->grid, &cache->items[i], filter, modify);
+      // Explore grid and use modify function according to filter function
+      kak_explore_from_node_until(ctx->grid, &cache->items[i], filter, modify);
 
-    free(modify.data);
-    free(filter.data);
-    // printf("Node(%hhu,%hhu) value not 0\n\n\n\n\n\n", node->pos.x,
-    // node->pos.y);
+      free(modify.data);
+      free(filter.data);
+      // printf("Node(%hhu,%hhu) value not 0\n\n\n\n\n\n", node->pos.x,
+      // node->pos.y);
+    }
   }
   free(cache);
 }
@@ -1405,6 +1425,13 @@ int node_compare_possible_count(const void *a, const void *b) {
   size_t count_a = node_a->possible_values ? node_a->possible_values->count : 0;
   size_t count_b = node_b->possible_values ? node_b->possible_values->count : 0;
 
+  if (count_a == 0) {
+    count_a = (size_t)-1;
+  }
+  if (count_b == 0) {
+    count_b = (size_t)-1;
+  }
+
   if (count_a < count_b)
     return -1;
   if (count_a > count_b)
@@ -1415,22 +1442,164 @@ void render_sorted_grid(const arr_node_ptrs *grid, int margin, int size) {
   size_t pos = 0;
   for (size_t i = 0; i < grid->count; i++) {
     Node *n = grid->items[i];
-    if (n->possible_values->count != 0) {
-      int screen_x = (int)(-1 + pos * 3) * (size + margin);
-      int screen_y = -1 * (size + margin);
+    int screen_x = (int)(-1 + pos * 3) * (size + margin);
+    int screen_y = -1 * (size + margin);
 
-      int screen_x_clue_x = (int)(-2 + pos * 3) * (size + margin);
-      int screen_x_clue_y = -1 * (size + margin);
+    int screen_x_clue_x = (int)(-2 + pos * 3) * (size + margin);
+    int screen_x_clue_y = -1 * (size + margin);
 
-      int screen_y_clue_x = (int)(-1 + pos * 3) * (size + margin);
-      int screen_y_clue_y = -2 * (size + margin);
+    int screen_y_clue_x = (int)(-1 + pos * 3) * (size + margin);
+    int screen_y_clue_y = -2 * (size + margin);
 
-      render_nodeEx(n->clue_y, margin, size, screen_y_clue_x, screen_y_clue_y,
-                    NULL);
-      render_nodeEx(n->clue_x, margin, size, screen_x_clue_x, screen_x_clue_y,
-                    NULL);
-      render_nodeEx(n, margin, size, screen_x, screen_y, NULL);
-      pos++;
+    render_nodeEx(n->clue_y, margin, size, screen_y_clue_x, screen_y_clue_y,
+                  NULL);
+    render_nodeEx(n->clue_x, margin, size, screen_x_clue_x, screen_x_clue_y,
+                  NULL);
+    render_nodeEx(n, margin, size, screen_x, screen_y, NULL);
+    pos++;
+  }
+}
+bool is_solution_unambiguous(arr_Nodes *grid) {
+  for (size_t i = 0; i < grid->count; i++) {
+    Node node = grid->items[i];
+    if (node.type == TILETYPE_EMPTY) {
+      if (node.possible_values->count == 1) {
+        return 1;
+      }
     }
   }
+  return 0;
+}
+
+bool backtrack_solve_puzzle(KakuroContext *ctx, int depth) {
+  printf("\n\nRECURSIVE FUNCTION depth %i\n\n", depth);
+  if (depth > 1) {
+    return false;
+  }
+
+  // STEP A: Recalculate all possible values based on current clue sums
+  clue_set_all_empty_sums(ctx->grid);
+  populate_possible_sums_for_empty_tiles(ctx->combination_map, ctx);
+
+  // STEP B: Check if we're done
+  if (is_solution_unambiguous(ctx->grid)) {
+    printf("Found tile with count 1");
+    return true;
+  }
+
+  // STEP C: Find next clue that needs a sum (sum_x == 0 or sum_y == 0)
+  Node *empty_clue = NULL;
+  bool is_x_direction = false;
+  nob_log(NOB_INFO, "Looking for empty clue");
+  for (size_t i = 0; i < ctx->sorted_grid->count; i++) {
+    Node *n = ctx->sorted_grid->items[i];
+    if (n->sum_x == 0) {
+      empty_clue = n->clue_x;
+      is_x_direction = true;
+      nob_log(NOB_INFO, "Found clue(%hhu,%hhu) with sum_x 0", empty_clue->pos.x,
+              empty_clue->pos.y);
+      break;
+    }
+
+    if (n->sum_y == 0) {
+      empty_clue = n->clue_y;
+      nob_log(NOB_INFO, "Found clue(%hhu,%hhu) with sum_y 0", empty_clue->pos.x,
+              empty_clue->pos.y);
+      is_x_direction = false;
+      break;
+    }
+  }
+  if (empty_clue == NULL) {
+    nob_log(NOB_INFO, "Filaed to find clue with sum = 0");
+    return false; // Failed to find empty clue to work on
+  }
+  empty_clue->color = (Color){255, 0, 255, 200};
+
+  // STEP D: Get list of possible sums to try for this clue
+  // TODO: Get empty_count from the clue (x_empty_count or y_empty_count)
+  // TODO: Get possible_sums array from
+  arr_uint8_t *possible_sums;
+  if (is_x_direction) {
+    possible_sums =
+        ctx->possible_sums_per_count->items[empty_clue->x_empty_count];
+    nob_log(NOB_INFO, "Getting possible sums for X_count:%hhu",
+            empty_clue->x_empty_count);
+
+  } else {
+    possible_sums =
+        ctx->possible_sums_per_count->items[empty_clue->y_empty_count];
+    nob_log(NOB_INFO, "Getting possible sums for Y_count:%hhu",
+            empty_clue->y_empty_count);
+  }
+  // typedef struct {
+  //   Node **affected_nodes;    // Pointers to nodes that were modified
+  //   arr_uint8_t **old_values; // Their original possible_values
+  //   uint8_t *old_sums;        // Original sum values (if we modified clues)
+  //   size_t count;
+  // } GridSnapshot;
+  size_t bufsize = 1024;
+  char buf[1024];
+  arr_uint8_t_to_string(buf, bufsize, possible_sums);
+  printf("possible sums %s\n", buf);
+  for (size_t i = 0; possible_sums->count; i++) {
+    printf("For loop iteration: %zu\n", i);
+    // Take snapshot
+    uint8_t sum = possible_sums->items[i];
+    if (is_x_direction) {
+      empty_clue->sum_x = sum;
+    } else {
+      empty_clue->sum_y = sum;
+    }
+    clue_set_all_empty_sums(ctx->grid);
+    populate_possible_sums_for_empty_tiles(ctx->combination_map, ctx);
+
+    printf("Populating possible");
+    populate_possible_sums_for_empty_tiles(ctx->combination_map, ctx);
+    arr_node_ptrs *locked = arr_node_ptrs_create(5);
+    size_t lockedCount = kak_lock_correct_tiles(ctx->grid, locked);
+    if (lockedCount > 0) {
+      for (size_t i = 0; i < locked->count; i++) {
+        Node *lockedNode = locked->items[i];
+        // TODO: for now creating in loop and freeing. do something else
+        ModifyCb modify =
+            modify_cb_node_values(lockedNode->possible_values->items[0]);
+        uint32_t mask = tiletype_mask(TILETYPE_CLUE, -1);
+        FilterCb filter = filter_cb_by_tiletype(mask);
+
+        // Explore grid and use modify function according to filter function
+        kak_explore_from_node_until(ctx->grid, lockedNode, filter, modify);
+
+        free(modify.data);
+        free(filter.data);
+      }
+      break;
+    }
+  }
+  // STEP E: Try each possible sum (backtracking loop)
+  // TODO: for (each sum in possible_sums) {
+
+  // E1: Take snapshot before making change
+  // TODO: GridSnapshot *snap = grid_snapshot_create(...)
+
+  // E2: Set the trial sum on the clue
+  // TODO: clue->sum_x = trial_sum (or sum_y if doing Y direction)
+
+  // E3: Recursively try to solve with this sum
+  // TODO: bool solved = backtrack_solve_puzzle(ctx, depth + 1);
+
+  // E4: Check if this led to solution
+  // TODO: if (solved) {
+  //           grid_snapshot_free(snap);  // Don't need to restore
+  //           return true;                // Solution found!
+  //       }
+
+  // E5: This sum didn't work - restore state and try next
+  // TODO: grid_snapshot_restore(snap);
+  // TODO: grid_snapshot_free(snap);
+  // TODO: clue->sum_x = 0;  // Reset to unknown
+
+  // TODO: }  // End of trying all sums
+
+  // STEP F: No sum worked
+  // TODO: return false;  // This branch has no solution
 }
