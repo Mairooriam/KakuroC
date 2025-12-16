@@ -169,14 +169,36 @@ int modify_delete_duplicates_possible_values(Node *node, void *userdata) {
   }
   return 1;
 }
-int modify_cursor_sight(Node *node, void *userdata) {
-  ModifyData_cursor_sight *data = (ModifyData_cursor_sight *)userdata;
+int modify_collect_used_values(Node *node, void *userdata) {
+  ModifyData_collect_used_values *data = (ModifyData_collect_used_values *)userdata;
   if (!data) {
     nob_log(NOB_WARNING, "Tried to modify node with invalid data");
     return -1;
   }
-  nob_da_append(data->cursor->sight, node->pos);
+
+  if (!node) {
+    nob_log(NOB_WARNING, "Tried to modify null node");
+    return -1;
+  }
+
+  if (node->value != 0 && node != data->target) {
+    if (arr_uint8_t_contains(data->values_to_remove, node->value) == -1) {
+      arr_uint8_t_add(data->values_to_remove, node->value);
+    }
+  }
+
   return 1;
+}
+int modify_cursor_sight(Node *node, void *userdata)
+{
+    ModifyData_cursor_sight *data = (ModifyData_cursor_sight *)userdata;
+    if (!data)
+    {
+        nob_log(NOB_WARNING, "Tried to modify node with invalid data");
+        return -1;
+    }
+    nob_da_append(data->cursor->sight, node->pos);
+    return 1;
 }
 int Modify_node_field(Node *node, void *userdata) {
   ModifyData_nodeField *data = (ModifyData_nodeField *)userdata;
@@ -256,6 +278,15 @@ ModifyCb modify_cb_delete_duplicates_from_possible_values(
   data->values = values_to_delete;
   return (ModifyCb){.fn = modify_delete_duplicates_possible_values,
                     .data = data};
+}
+
+ModifyCb modify_cb_collect_used_values(Node *target) {
+  ModifyData_collect_used_values *data = malloc(sizeof(ModifyData_collect_used_values));
+  if (!data)
+    return (ModifyCb){0};
+  data->target = target;
+  data->values_to_remove = arr_uint8_t_create(9);
+  return (ModifyCb){.fn = modify_collect_used_values, .data = data};
 }
 
 ModifyCb modify_cb_node_values(uint8_t value) {

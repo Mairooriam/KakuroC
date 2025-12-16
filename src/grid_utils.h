@@ -74,6 +74,12 @@ typedef struct {
 int modify_delete_duplicates_possible_values(Node *node, void *userdata);
 
 typedef struct {
+  Node *target;
+  arr_uint8_t *values_to_remove;
+} ModifyData_collect_used_values;
+int modify_collect_used_values(Node *node, void *userdata);
+
+typedef struct {
   Node node;
   uint32_t flags;
 } ModifyData_nodeField;
@@ -96,3 +102,4 @@ ModifyCb modify_cb_node_values(uint8_t value);
 ModifyCb modify_cb_cursor_sight(CursorNode *node);
 ModifyCb modify_cb_node_tiletype(TileType type);
 ModifyCb modify_cb_delete_duplicates_from_possible_values(arr_uint8_t *arr);
+ModifyCb modify_cb_collect_used_values(Node *target);

@@ -43,6 +43,7 @@ int main(void) {
   ctx.combination_map = ht_create();
   ctx.possible_sums_per_count = arr_uint8_t_2d_create(10);
   ctx.sorted_grid = arr_node_ptrs_create(16);
+  ctx.valid_count_sum_cache = ht_create();
 
   arr_nodes_serialize("test.txt", grid);
   // TODO: fix leak
@@ -55,17 +56,18 @@ int main(void) {
   arr_nodes_deserialize("savefile.txt", ctx.grid);
 
   // Calculate count sum combinations
-  cache_possible_sums(ctx.combination_map, ctx.possible_sums_per_count);
+  cache_possible_sums(ctx.combination_map, ctx.possible_sums_per_count,
+                      ctx.valid_count_sum_cache);
 
   // inits clues with 9 tiles;
   clue_tile_45_checker(ctx.grid);
 
   // set empty tile sums according to clues
   clue_set_all_empty_sums(ctx.grid);
-
-  // fills grid with possible sums
-  populate_possible_sums_for_empty_tiles(ctx.combination_map, &ctx);
-
+  //
+  // // fills grid with possible sums
+  // populate_possible_sums_for_empty_tiles(ctx.combination_map, &ctx);
+  //
   for (size_t i = 0; i < ctx.grid->count; i++) {
     Node *node = &ctx.grid->items[i];
     if (node->type == TILETYPE_EMPTY) {
@@ -109,14 +111,16 @@ int main(void) {
 
     // MOUSE REF
     Vector2 mouseScreen = GetMousePosition();
-    Vector2 mouseWorld = GetScreenToWorld2D(mouseScreen, camera);  // Convert to world space
+    Vector2 mouseWorld =
+        GetScreenToWorld2D(mouseScreen, camera); // Convert to world space
     DrawCircleV(mouseScreen, 4, DARKGRAY);
-    DrawTextEx(
-        GetFontDefault(), 
-        TextFormat("Screen: [%i, %i] World: [%.2f, %.2f]", (int)mouseScreen.x, (int)mouseScreen.y, mouseWorld.x, mouseWorld.y),
-        Vector2Add(mouseScreen, (Vector2){-44, -24}), 20, 2, BLACK);
-        EndDrawing();
-      }
+    DrawTextEx(GetFontDefault(),
+               TextFormat("Screen: [%i, %i] World: [%.2f, %.2f]",
+                          (int)mouseScreen.x, (int)mouseScreen.y, mouseWorld.x,
+                          mouseWorld.y),
+               Vector2Add(mouseScreen, (Vector2){-44, -24}), 20, 2, BLACK);
+    EndDrawing();
+  }
 
   // CLEANUP
   CloseWindow();

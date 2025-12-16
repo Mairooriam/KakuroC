@@ -112,3 +112,7 @@ bool ht_set(ht *t, uint16_t key, void *value) {
     return false;
   return ht_set_entry(t->entries, t->capacity, key, value, &t->count);
 }
+
+void ht_make_key(uint8_t val1, uint8_t val2, uint16_t *key) {
+  *key = ((uint16_t)val1 << 8) | val2;
+}

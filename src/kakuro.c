@@ -15,6 +15,7 @@
 
 DA_CREATE(arr_node_ptrs)
 DA_FREE(arr_node_ptrs)
+DA_INIT(arr_uint8_t)
 
 Node *node_create(Vec2u8 pos, TileType type, uint8_t sum_x, uint8_t sum_y) {
   Node *node = malloc(sizeof(Node));
@@ -830,11 +831,7 @@ void input_keys(KakuroContext *ctx) {
     node_to_string(buf, bufsize, node);
     printf("%s", buf);
   }
-  // CHECK TILE FOR 45 SUM
-  if (IsKeyDown(KEY_T)) {
-  } else if (IsKeyReleased(KEY_T)) {
-    clue_tile_45_checker_single_node(ctx->grid, cursor->pos.x, cursor->pos.y);
-  }
+
   // CHECK ALL TILES FOR 45 SUM
   if (IsKeyDown(KEY_A)) {
   } else if (IsKeyReleased(KEY_A)) {
@@ -883,11 +880,7 @@ void input_keys(KakuroContext *ctx) {
     case TILETYPE_EMPTY: {
       ctx->state = APP_STATE_TYPING;
       Node *node = arr_nodes_get(ctx->grid, cursor->pos.x, cursor->pos.y);
-      if (node->possible_values->count <= 8) {
-        arr_uint8_t_add(node->possible_values, number);
-        printf("[INPUT] Added %d to tile (%u, %u)\n", number, cursor->pos.x,
-               cursor->pos.y);
-      }
+      node->value = number;
     } break;
 
     default:
@@ -904,7 +897,8 @@ void input_keys(KakuroContext *ctx) {
   if (IsKeyReleased(KEY_E)) {
     // clue_calculate_possible_values(ctx->grid, cursor->pos.x, cursor->pos.y);
     if (ctx->combination_map->count == 0) {
-      cache_possible_sums(ctx->combination_map, ctx->possible_sums_per_count);
+      cache_possible_sums(ctx->combination_map, ctx->possible_sums_per_count,
+                          ctx->valid_count_sum_cache);
     } else {
       for (size_t i = 0; i < ctx->combination_map->capacity; i++) {
         uint16_t key = ctx->combination_map->entries[i].key;
@@ -972,8 +966,17 @@ void input_keys(KakuroContext *ctx) {
 
   if (IsKeyReleased(KEY_T)) {
     printf("Starting backtracking solver...\n");
+    Node *node =
+        kak_get_node_under_cursor_tile(ctx->grid, ctx->Cursor_tile.tile);
+    kakV2_calculate_possibe_values_for_tile(ctx, node);
 
-    backtrack_solve_puzzle(ctx, 0);
+    // backtrack_solve_puzzle(ctx, 0);
+  }
+  if (IsKeyReleased(KEY_G)) {
+    Node *node =
+        kak_get_node_under_cursor_tile(ctx->grid, ctx->Cursor_tile.tile);
+    printf("applying constrains");
+    kakV2_apply_row_column_constraints(ctx->grid, node);
   }
 }
 
@@ -1105,7 +1108,8 @@ void print_binary_stdout(unsigned int number) {
 }
 
 void cache_possible_sums(ht *combination_map,
-                         arr_uint8_t_2d *possible_sums_per_count) {
+                         arr_uint8_t_2d *possible_sums_per_count,
+                         ht *valid_count_sum_cache) {
   if (!combination_map) {
     nob_log(NOB_ERROR, "Map supplied is NULL");
   }
@@ -1147,6 +1151,14 @@ void cache_possible_sums(ht *combination_map,
           existing->count = 0;
           existing->capacity = 16;
           ht_set(combination_map, key, (void *)existing);
+
+          arr_uint8_t *unique_nums = arr_uint8_t_create(9);
+          for (int i = 0; i < 9; i++) {
+            if (subset->items[i] != 0) {
+              arr_uint8_t_add(unique_nums, subset->items[i]);
+            }
+          }
+          ht_set(valid_count_sum_cache, key, (void *)unique_nums);
 
           // populate possible sums at the sametime
           if (!possible_sums_per_count->items[count]) {
@@ -1315,60 +1327,111 @@ void populate_possible_sums_for_empty_tiles(ht *combination_map,
   for (size_t i = 0; i < ctx->grid->count; i++) {
     Node *node = &ctx->grid->items[i];
     // TODO: this is temp fix
-    if (node->type == TILETYPE_EMPTY) {
 
-      // for now two pass. first get possible sums for each node.
-      //
-      // thne later second pass to remove already "placed" values
-      arr_uint8_t_2d *arr =
-          get_possible_sums_from_cache_for_tile(combination_map, node);
-      if (arr != NULL) {
-        arr_uint8_t *uniquearr = arr_uint8_t_create(16);
-        nob_da_foreach(arr_uint8_t *, it2, arr) {
-          arr_uint8_t *arr1 = (*it2);
-          nob_da_foreach(uint8_t, it3, arr1) {
-            uint8_t val = (*it3);
-            if (val == 0) {
-              continue;
-            }
-            if (arr_uint8_t_contains(uniquearr, val) == -1) {
-              nob_da_append(uniquearr, val);
-            }
-          }
+    arr_uint8_t_2d *arr =
+        get_possible_sums_from_cache_for_tile(combination_map, node);
+    if (arr == NULL)
+      continue;
+
+    arr_uint8_t *uniquearr = arr_uint8_t_create(16);
+    nob_da_foreach(arr_uint8_t *, it2, arr) {
+      arr_uint8_t *arr1 = (*it2);
+      nob_da_foreach(uint8_t, it3, arr1) {
+        uint8_t val = (*it3);
+        if (val == 0) {
+          continue;
         }
-        // TODO: leaks if called multiple times? maybe?
-        // need to also filter according to this nodes row's and columns placed
-        // value
-
-        node->possible_values = uniquearr;
-        if (node->value != 0) {
-          arr_nodes_add(cache, node);
+        if (arr_uint8_t_contains(uniquearr, val) == -1) {
+          nob_da_append(uniquearr, val);
         }
-
-        // TODO: random buf
-        // char buf[1024];
-        // arr_uint8_t_to_string(buf, 1024, uniquearr);
-        // nob_log(NOB_INFO, "Set x:%hhu,y:%hhu values to: %s", (*it1)->pos.x,
-        //         (*it1)->pos.y, buf);
       }
+    }
+
+    // Remove values that are already used in the same row (x-axis)
+    size_t x_temp = node->pos.x;
+    while (x_temp > 0) {
+      x_temp--;
+      Node *n = arr_nodes_get(ctx->grid, x_temp, node->pos.y);
+      if (n && n->value != 0 &&
+          (n->type == TILETYPE_EMPTY || n->type == TILETYPE_EMPTY_VALID)) {
+        int idx = arr_uint8_t_contains(uniquearr, n->value);
+        if (idx >= 0) {
+          nob_da_remove_unordered(uniquearr, (size_t)idx);
+        }
+      }
+      if (n && (n->type == TILETYPE_CLUE || n->type == TILETYPE_BLOCKED)) {
+        break;
+      }
+    }
+
+    x_temp = node->pos.x;
+    while (x_temp < ctx->grid->x_dimension - 1) {
+      x_temp++;
+      Node *n = arr_nodes_get(ctx->grid, x_temp, node->pos.y);
+      if (n && n->value != 0 &&
+          (n->type == TILETYPE_EMPTY || n->type == TILETYPE_EMPTY_VALID)) {
+        int idx = arr_uint8_t_contains(uniquearr, n->value);
+        if (idx >= 0) {
+          nob_da_remove_unordered(uniquearr, (size_t)idx);
+        }
+      }
+      if (n && (n->type == TILETYPE_CLUE || n->type == TILETYPE_BLOCKED)) {
+        break;
+      }
+    }
+
+    // Remove values that are already used in the same column (y-axis)
+    size_t y_temp = node->pos.y;
+    while (y_temp > 0) {
+      y_temp--;
+      Node *n = arr_nodes_get(ctx->grid, node->pos.x, y_temp);
+      if (n && n->value != 0 &&
+          (n->type == TILETYPE_EMPTY || n->type == TILETYPE_EMPTY_VALID)) {
+        int idx = arr_uint8_t_contains(uniquearr, n->value);
+        if (idx >= 0) {
+          nob_da_remove_unordered(uniquearr, (size_t)idx);
+        }
+      }
+      if (n && (n->type == TILETYPE_CLUE || n->type == TILETYPE_BLOCKED)) {
+        break;
+      }
+    }
+
+    y_temp = node->pos.y;
+    while (y_temp < ctx->grid->y_dimension - 1) {
+      y_temp++;
+      Node *n = arr_nodes_get(ctx->grid, node->pos.x, y_temp);
+      if (n && n->value != 0 &&
+          (n->type == TILETYPE_EMPTY || n->type == TILETYPE_EMPTY_VALID)) {
+        int idx = arr_uint8_t_contains(uniquearr, n->value);
+        if (idx >= 0) {
+          nob_da_remove_unordered(uniquearr, (size_t)idx);
+        }
+      }
+      if (n && (n->type == TILETYPE_CLUE || n->type == TILETYPE_BLOCKED)) {
+        break;
+      }
+    }
+
+    node->possible_values = uniquearr;
+    if (node->value != 0) {
+      arr_nodes_add(cache, node);
     }
   }
   for (size_t i = 0; i < cache->count; i++) {
-    if (cache->items[i].type == TILETYPE_EMPTY) {
 
-      ModifyCb modify = modify_cb_delete_duplicates_from_possible_values(
-          cache->items[i].possible_values);
-      uint32_t mask = tiletype_mask(TILETYPE_CLUE, -1);
-      FilterCb filter = filter_cb_by_tiletype(mask);
+    ModifyCb modify = modify_cb_delete_duplicates_from_possible_values(
+        cache->items[i].possible_values);
+    uint32_t mask = tiletype_mask(TILETYPE_CLUE, -1);
+    FilterCb filter = filter_cb_by_tiletype(mask);
 
-      // Explore grid and use modify function according to filter function
-      kak_explore_from_node_until(ctx->grid, &cache->items[i], filter, modify);
+    // Explore grid and use modify function according to filter function
+    kak_explore_from_node_until(ctx->grid, &cache->items[i], filter, modify);
 
-      free(modify.data);
-      free(filter.data);
-      // printf("Node(%hhu,%hhu) value not 0\n\n\n\n\n\n", node->pos.x,
-      // node->pos.y);
-    }
+    free(modify.data);
+    free(filter.data);
+    // printf("Node(%hhu,%hhu) value not 0\n\n\n\n\n\n", node->pos.x,
+    // node->pos.y);
   }
   free(cache);
 }
@@ -1478,8 +1541,8 @@ bool backtrack_solve_puzzle(KakuroContext *ctx, int depth) {
   }
 
   // STEP A: Recalculate all possible values based on current clue sums
-  clue_set_all_empty_sums(ctx->grid);
-  populate_possible_sums_for_empty_tiles(ctx->combination_map, ctx);
+  // clue_set_all_empty_sums(ctx->grid);
+  // populate_possible_sums_for_empty_tiles(ctx->combination_map, ctx);
 
   // STEP B: Check if we're done
   if (is_solution_unambiguous(ctx->grid)) {
@@ -1554,7 +1617,6 @@ bool backtrack_solve_puzzle(KakuroContext *ctx, int depth) {
     populate_possible_sums_for_empty_tiles(ctx->combination_map, ctx);
 
     printf("Populating possible");
-    populate_possible_sums_for_empty_tiles(ctx->combination_map, ctx);
     arr_node_ptrs *locked = arr_node_ptrs_create(5);
     size_t lockedCount = kak_lock_correct_tiles(ctx->grid, locked);
     if (lockedCount > 0) {
@@ -1602,4 +1664,136 @@ bool backtrack_solve_puzzle(KakuroContext *ctx, int depth) {
 
   // STEP F: No sum worked
   // TODO: return false;  // This branch has no solution
+}
+
+static arr_uint8_t *
+kakV2_get_unique_numbers_for_count_and_sum(uint8_t count, uint8_t sum,
+                                           ht *count_sum_unique_numbers) {
+  uint16_t key = 0;
+  ht_make_key(count, sum, &key);
+  arr_uint8_t *result = (arr_uint8_t *)ht_get(count_sum_unique_numbers, key);
+  if (result != NULL) {
+    printf("\n(Count: %hhu, Sum: %hhu) unique numbers: [", count, sum);
+    for (size_t i = 0; i < result->count; i++) {
+      printf("%hhu", result->items[i]);
+      if (i < result->count - 1)
+        printf(",");
+    }
+    printf("]\n");
+    return result;
+
+  } else {
+    printf("\n(Count: %hhu, Sum: %hhu) is INVALID\n", count, sum);
+    return NULL;
+  }
+}
+
+int kakV2_calculate_possibe_values_for_tile(KakuroContext *ctx, Node *target) {
+  (void)target;
+
+  // Dont free. cache owns
+  arr_uint8_t *x_arr = kakV2_get_unique_numbers_for_count_and_sum(
+      target->x_empty_count, target->sum_x, ctx->valid_count_sum_cache);
+  arr_uint8_t *y_arr = kakV2_get_unique_numbers_for_count_and_sum(
+      target->y_empty_count, target->sum_y, ctx->valid_count_sum_cache);
+
+  target->possible_values->count = 0;
+
+  uint8_t counts[10] = {0}; // Index 0 unused, 1-9 for numbers
+
+  if (x_arr) {
+    for (size_t i = 0; i < x_arr->count; i++) {
+      counts[x_arr->items[i]]++;
+    }
+  }
+
+  if (y_arr) {
+    for (size_t i = 0; i < y_arr->count; i++) {
+      counts[y_arr->items[i]]++;
+    }
+  }
+
+  if (x_arr && y_arr) {
+    for (uint8_t num = 1; num <= 9; num++) {
+      if (counts[num] == 2) {
+        arr_uint8_t_add(target->possible_values, num);
+      }
+    }
+  } else {
+    for (uint8_t num = 1; num <= 9; num++) {
+      if (counts[num] >= 1) {
+        arr_uint8_t_add(target->possible_values, num);
+      }
+    }
+  }
+  return -1;
+}
+
+typedef enum {
+  DIRECTION_LEFT = 0,
+  DIRECTION_RIGHT = 1,
+  DIRECTION_UP = 2,
+  DIRECTION_DOWN = 3
+} Direction;
+
+static void kakV2_collect_used_values_in_direction(arr_Nodes *grid,
+                                                   Node *target, Direction dir,
+                                                   arr_uint8_t *used_values) {
+  int dx = 0, dy = 0;
+  switch (dir) {
+  case DIRECTION_LEFT:
+    dx = -1;
+    break;
+  case DIRECTION_RIGHT:
+    dx = 1;
+    break;
+  case DIRECTION_UP:
+    dy = -1;
+    break;
+  case DIRECTION_DOWN:
+    dy = 1;
+    break;
+  }
+
+  int x = target->pos.x + dx;
+  int y = target->pos.y + dy;
+
+  while (x >= 0 && x < (int)grid->x_dimension && y >= 0 &&
+         y < (int)grid->y_dimension) {
+    Node *node = arr_nodes_get(grid, x, y);
+    if (node->type == TILETYPE_CLUE || node->type == TILETYPE_BLOCKED) {
+      break;
+    }
+    if (node->value != 0 &&
+        arr_uint8_t_contains(used_values, node->value) == -1) {
+      arr_uint8_t_add(used_values, node->value);
+    }
+    x += dx;
+    y += dy;
+  }
+}
+
+void kakV2_apply_row_column_constraints(arr_Nodes *grid, Node *target) {
+  arr_uint8_t used_values;
+  arr_uint8_t_init(&used_values, 9);
+
+  kakV2_collect_used_values_in_direction(grid, target, DIRECTION_LEFT,
+                                         &used_values);
+  kakV2_collect_used_values_in_direction(grid, target, DIRECTION_RIGHT,
+                                         &used_values);
+  kakV2_collect_used_values_in_direction(grid, target, DIRECTION_UP,
+                                         &used_values);
+  kakV2_collect_used_values_in_direction(grid, target, DIRECTION_DOWN,
+                                         &used_values);
+
+  // Remove used values
+  for (size_t i = 0; i < used_values.count; i++) {
+    int idx =
+        arr_uint8_t_contains(target->possible_values, used_values.items[i]);
+    if (idx >= 0) {
+      nob_da_remove_unordered(target->possible_values, (size_t)idx);
+    }
+  }
+
+  nob_da_free(used_values);
 }

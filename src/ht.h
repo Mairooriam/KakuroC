@@ -19,6 +19,8 @@ void ht_destroy(ht *t);
 void *ht_get(ht *t, uint16_t key);
 bool ht_set(ht *t, uint16_t key, void *value);
 
+void ht_make_key(uint8_t val1, uint8_t val2, uint16_t *key);
+
 #define INITIAL_CAPACITY 16
 typedef struct {
   uint16_t key;

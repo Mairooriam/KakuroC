@@ -50,7 +50,12 @@
       free(da);                                                                \
     }                                                                          \
   }
-
+#define DA_INIT(type)                                                          \
+  void type##_init(type *da, size_t cap) {                                     \
+    da->count = 0;                                                             \
+    da->capacity = cap;                                                        \
+    da->items = malloc(sizeof(*da->items) * cap);                              \
+  }
 typedef enum {
   STATE_KEY_NONE,
   STATE_KEY_ONE,
@@ -233,7 +238,8 @@ void clue_set_all_empty_sums(
     arr_Nodes *arr); // TODO: implement hashset and use hash of the clue nopdes
                      // instead of iterating trough all
 void cache_possible_sums(ht *combination_map,
-                         arr_uint8_t_2d *possible_sums_per_count);
+                         arr_uint8_t_2d *possible_sums_per_count,
+                         ht *valid_count_sum_cache);
 Node *kak_get_node_under_cursor_tile(const arr_Nodes *arr, const Node *cursor);
 
 // returns count of locked tiles
@@ -260,7 +266,8 @@ typedef struct {
   ht *combination_map;
   arr_uint8_t_2d *possible_sums_per_count;
   arr_node_ptrs *sorted_grid;
-
+  ht *valid_count_sum_cache; // for example count:4 sum10: -> will give
+                             // arr_uint8_t 1 2 3 4
 } KakuroContext;
 
 // INPUT
@@ -295,3 +302,7 @@ void grid_snapshot_free(GridSnapshot *snap);
 bool is_solution_unambiguous(arr_Nodes *grid);
 size_t count_locked_tiles(arr_Nodes *grid);
 bool backtrack_solve_puzzle(KakuroContext *ctx, int depth);
+
+// calculates possible_values for single tile.
+int kakV2_calculate_possibe_values_for_tile(KakuroContext *ctx, Node *target);
+void kakV2_apply_row_column_constraints(arr_Nodes *grid, Node *target);
