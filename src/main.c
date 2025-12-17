@@ -94,7 +94,7 @@ int main(void) {
     input_process(&ctx);
     // TODO: if need
     update_process(&ctx);
-
+    kakV2_iterate_algorithm(&ctx);
     // RENDERING
     BeginDrawing();
     BeginMode2D(camera);

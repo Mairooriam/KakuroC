@@ -254,6 +254,14 @@ typedef struct {
   arr_Vec2u8 *sight;
 } CursorNode;
 
+typedef struct {
+  float time_elapsed;
+  float deltatime;
+  float trig_time_current;
+  float trig_target;
+  size_t current_step;
+} Animation;
+
 // Context
 typedef struct {
   CursorNode Cursor_tile;
@@ -268,6 +276,7 @@ typedef struct {
   arr_node_ptrs *sorted_grid;
   ht *valid_count_sum_cache; // for example count:4 sum10: -> will give
                              // arr_uint8_t 1 2 3 4
+  Animation animation;
 } KakuroContext;
 
 // INPUT
@@ -306,3 +315,5 @@ bool backtrack_solve_puzzle(KakuroContext *ctx, int depth);
 // calculates possible_values for single tile.
 int kakV2_calculate_possibe_values_for_tile(KakuroContext *ctx, Node *target);
 void kakV2_apply_row_column_constraints(arr_Nodes *grid, Node *target);
+
+void kakV2_iterate_algorithm(KakuroContext *ctx);

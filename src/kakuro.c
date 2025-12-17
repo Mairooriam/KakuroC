@@ -1501,6 +1501,7 @@ int node_compare_possible_count(const void *a, const void *b) {
     return 1;
   return 0;
 }
+
 void render_sorted_grid(const arr_node_ptrs *grid, int margin, int size) {
   size_t pos = 0;
   for (size_t i = 0; i < grid->count; i++) {
@@ -1796,4 +1797,18 @@ void kakV2_apply_row_column_constraints(arr_Nodes *grid, Node *target) {
   }
 
   nob_da_free(used_values);
+}
+
+void kakV2_iterate_algorithm(KakuroContext *ctx) {
+  Animation an = ctx->animation;
+  an.time_elapsed += an.deltatime;
+  an.trig_time_current += an.deltatime;
+  if (an.trig_time_current >= an.trig_target) {
+
+    Node *node =
+        kak_get_node_under_cursor_tile(ctx->grid, ctx->Cursor_tile.tile);
+    kakV2_calculate_possibe_values_for_tile(ctx, node);
+
+    an.trig_time_current = 0;
+  }
 }
