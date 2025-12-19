@@ -978,6 +978,16 @@ void input_keys(KakuroContext *ctx) {
     printf("applying constrains");
     kakV2_apply_row_column_constraints(ctx->grid, node);
   }
+  if (IsKeyReleased(KEY_SPACE)) {
+    ctx->animation.animation_playing = !ctx->animation.animation_playing;
+    if (ctx->animation.animation_playing) {
+      ctx->animation.current_step = 0;
+      ctx->animation.state = ANIM_STATE_CALC_POSSIBLE_VALUES;
+      printf("Animation started\n");
+    } else {
+      printf("Animation paused\n");
+    }
+  }
 }
 
 void input_state(KakuroContext *ctx) {
@@ -1799,16 +1809,103 @@ void kakV2_apply_row_column_constraints(arr_Nodes *grid, Node *target) {
   nob_da_free(used_values);
 }
 
-void kakV2_iterate_algorithm(KakuroContext *ctx) {
-  Animation an = ctx->animation;
-  an.time_elapsed += an.deltatime;
-  an.trig_time_current += an.deltatime;
-  if (an.trig_time_current >= an.trig_target) {
+void kakV2_animate_algorithm(KakuroContext *ctx) {
+  Animation *an = &ctx->animation;
+  an->time_elapsed += GetFrameTime();
+  an->trig_time_current += GetFrameTime();
 
-    Node *node =
-        kak_get_node_under_cursor_tile(ctx->grid, ctx->Cursor_tile.tile);
-    kakV2_calculate_possibe_values_for_tile(ctx, node);
+  if (an->trig_time_current >= an->trig_target) {
 
-    an.trig_time_current = 0;
+    switch (an->state) {
+    case ANIM_STATE_IDLE:
+      // Do nothing, waiting to start
+      break;
+
+    case ANIM_STATE_CALC_POSSIBLE_VALUES:
+      kakV2_animate_possible_values(ctx, (Color){255, 255, 0, 200});
+      break;
+
+    case ANIM_STATE_APPLY_ROW_COLUMN_CONSTRAINTS:
+      kakV2_animate_apply_constrains_row_and_colums(ctx,
+                                                    (Color){255, 0, 0, 200});
+      break;
+
+    case ANIM_STATE_COMPLETE:
+      an->animation_playing = false;
+      an->state = ANIM_STATE_IDLE;
+      printf("Animation complete - press SPACE to restart\n");
+      break;
+    }
+
+    an->trig_time_current = 0;
+  }
+}
+void kakV2_animate_possible_values(KakuroContext *ctx, Color color) {
+  Animation *an = &ctx->animation;
+  if (an->current_step < ctx->grid->count) {
+    Node *node = &ctx->grid->items[an->current_step];
+
+    // TRAIL EFFECT
+    if (an->current_step > 0) {
+      Node *prev = &ctx->grid->items[an->current_step - 1];
+      if (prev->type == TILETYPE_EMPTY || prev->type == TILETYPE_EMPTY_VALID) {
+        prev->color = node_get_default_color(prev->type);
+      }
+    }
+
+    if (node->type == TILETYPE_EMPTY || node->type == TILETYPE_EMPTY_VALID) {
+      kakV2_calculate_possibe_values_for_tile(ctx, node);
+      node->color = color;
+      printf("Step %zu: Calculated possible values for (%hhu,%hhu)\n",
+             an->current_step, node->pos.x, node->pos.y);
+    }
+
+    an->current_step++;
+  } else {
+    // RESET
+    if (ctx->grid->count > 0) {
+      Node *last = &ctx->grid->items[ctx->grid->count - 1];
+      if (last->type == TILETYPE_EMPTY || last->type == TILETYPE_EMPTY_VALID) {
+        last->color = node_get_default_color(last->type);
+      }
+    }
+
+    // STATE SWITCH
+    an->current_step = 0;
+    an->state = ANIM_STATE_APPLY_ROW_COLUMN_CONSTRAINTS;
+  }
+}
+void kakV2_animate_apply_constrains_row_and_colums(KakuroContext *ctx,
+                                                   Color color) {
+  Animation *an = &ctx->animation;
+  if (an->current_step < ctx->grid->count) {
+    Node *node = &ctx->grid->items[an->current_step];
+
+    // TRAIL EFFECT
+    if (an->current_step > 0) {
+      Node *prev = &ctx->grid->items[an->current_step - 1];
+      if (prev->type == TILETYPE_EMPTY || prev->type == TILETYPE_EMPTY_VALID) {
+        prev->color = node_get_default_color(prev->type);
+      }
+    }
+
+    if (node->type == TILETYPE_EMPTY || node->type == TILETYPE_EMPTY_VALID) {
+      kakV2_apply_row_column_constraints(ctx->grid, node);
+      node->color = color;
+    }
+
+    an->current_step++;
+  } else {
+    // RESET
+    if (ctx->grid->count > 0) {
+      Node *last = &ctx->grid->items[ctx->grid->count - 1];
+      if (last->type == TILETYPE_EMPTY || last->type == TILETYPE_EMPTY_VALID) {
+        last->color = node_get_default_color(last->type);
+      }
+    }
+
+    // STATE SWITCH
+    an->current_step = 0;
+    an->state = ANIM_STATE_COMPLETE;
   }
 }

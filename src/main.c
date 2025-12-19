@@ -45,6 +45,13 @@ int main(void) {
   ctx.sorted_grid = arr_node_ptrs_create(16);
   ctx.valid_count_sum_cache = ht_create();
 
+  ctx.animation.trig_target = 0.01f;
+  ctx.animation.trig_time_current = 0.0f;
+  ctx.animation.time_elapsed = 0.0f;
+  ctx.animation.current_step = 0;
+  ctx.animation.animation_playing = false;
+  ctx.animation.state = ANIM_STATE_IDLE;
+
   arr_nodes_serialize("test.txt", grid);
   // TODO: fix leak
   arr_Nodes *tmparr = arr_nodes_create(grid->x_dimension, grid->y_dimension);
@@ -92,9 +99,11 @@ int main(void) {
 
     // END OF INPUTS
     input_process(&ctx);
-    // TODO: if need
     update_process(&ctx);
-    kakV2_iterate_algorithm(&ctx);
+    ctx.animation.deltatime = GetFrameTime();
+    if (ctx.animation.animation_playing) {
+      kakV2_animate_algorithm(&ctx);
+    }
     // RENDERING
     BeginDrawing();
     BeginMode2D(camera);

@@ -254,12 +254,21 @@ typedef struct {
   arr_Vec2u8 *sight;
 } CursorNode;
 
+typedef enum {
+  ANIM_STATE_IDLE,
+  ANIM_STATE_CALC_POSSIBLE_VALUES,
+  ANIM_STATE_APPLY_ROW_COLUMN_CONSTRAINTS,
+  ANIM_STATE_COMPLETE
+} AnimationState;
+
 typedef struct {
   float time_elapsed;
   float deltatime;
   float trig_time_current;
   float trig_target;
   size_t current_step;
+  bool animation_playing;
+  AnimationState state;
 } Animation;
 
 // Context
@@ -316,4 +325,7 @@ bool backtrack_solve_puzzle(KakuroContext *ctx, int depth);
 int kakV2_calculate_possibe_values_for_tile(KakuroContext *ctx, Node *target);
 void kakV2_apply_row_column_constraints(arr_Nodes *grid, Node *target);
 
-void kakV2_iterate_algorithm(KakuroContext *ctx);
+void kakV2_animate_algorithm(KakuroContext *ctx);
+void kakV2_animate_possible_values(KakuroContext *ctx, Color color);
+void kakV2_animate_apply_constrains_row_and_colums(KakuroContext *ctx,
+                                                   Color color);
